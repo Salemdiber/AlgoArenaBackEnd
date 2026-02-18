@@ -8,7 +8,9 @@ import {
 	Delete,
 	HttpException,
 	HttpStatus,
+	UseGuards,
 } from '@nestjs/common';
+import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { UserService } from './user.service';
 import { CreateUserDto } from './dto/create-user.dto';
 
@@ -35,11 +37,13 @@ export class UserController {
 		return await this.userService.findOne(id);
 	}
 
+	@UseGuards(JwtAuthGuard)
 	@Patch(':id')
 	async update(@Param('id') id: string, @Body() dto: Partial<CreateUserDto>) {
 		return await this.userService.update(id, dto);
 	}
 
+	@UseGuards(JwtAuthGuard)
 	@Delete(':id')
 	async remove(@Param('id') id: string) {
 		return await this.userService.remove(id);
