@@ -96,3 +96,117 @@ Nest is an MIT-licensed open source project. It can grow thanks to the sponsors 
 ## License
 
 Nest is [MIT licensed](https://github.com/nestjs/nest/blob/master/LICENSE).
+
+---
+
+## API Endpoints
+
+Base URL (local): `http://localhost:3000`
+
+Auth: protected routes require header `Authorization: Bearer <access_token>`.
+
+### Health Endpoint
+
+#### `GET /`
+- Description: basic hello endpoint.
+- Auth: No
+- Params: none
+- Body: none
+
+### Auth Endpoints
+
+#### `POST /auth/register`
+- Description: create a new user account.
+- Auth: No
+- Body (JSON):
+  - `username` (string, required)
+  - `password` (string, required, min 6)
+  - `email` (string, required, valid email)
+  - `avatar` (string URL, optional)
+  - `bio` (string, optional)
+  - `role` (`Player` | `Admin`, optional)
+
+#### `POST /auth/login`
+- Description: authenticate user and return JWT access token.
+- Auth: No
+- Body (JSON):
+  - `username` (string, required)
+  - `password` (string, required)
+
+### User Endpoints
+
+#### `POST /user`
+- Description: create user directly from user module.
+- Auth: No
+- Body (JSON): same as `/auth/register`.
+
+#### `GET /user`
+- Description: list all users.
+- Auth: No
+- Params: none
+- Body: none
+
+#### `GET /user/:id`
+- Description: get one user by id.
+- Auth: No
+- Path params:
+  - `id` (string, required)
+
+#### `PATCH /user/:id`
+- Description: update user by id.
+- Auth: Yes (JWT)
+- Path params:
+  - `id` (string, required)
+- Body (JSON, all optional):
+  - `username` (string)
+  - `password` (string)
+  - `email` (string)
+  - `avatar` (string URL or null)
+  - `bio` (string or null)
+  - `role` (`Player` | `Admin`)
+
+#### `DELETE /user/:id`
+- Description: delete user by id.
+- Auth: Yes (JWT)
+- Path params:
+  - `id` (string, required)
+
+### Account Settings Endpoints (Current User)
+
+#### `GET /user/me`
+- Description: load current authenticated user profile (for pre-filling account settings form).
+- Auth: Yes (JWT)
+- Params: none
+- Body: none
+
+#### `PATCH /user/me/avatar`
+- Description: upload or replace current user avatar.
+- Auth: Yes (JWT)
+- Content-Type: `multipart/form-data`
+- Form-data fields:
+  - `avatar` (file, required)
+- File constraints:
+  - Allowed: `.jpg`, `.jpeg`, `.png`, `.webp`
+  - Max size: 5MB
+
+#### `PATCH /user/me`
+- Description: update current user profile information.
+- Auth: Yes (JWT)
+- Body (JSON, all optional):
+  - `username` (string, min 3, max 30)
+  - `email` (string, valid email)
+  - `bio` (string, max 500)
+
+#### `PATCH /user/me/password`
+- Description: change current user password.
+- Auth: Yes (JWT)
+- Body (JSON):
+  - `currentPassword` (string, required, min 6)
+  - `newPassword` (string, required, min 6)
+  - `confirmPassword` (string, required, min 6)
+
+#### `DELETE /user/me`
+- Description: delete current user account.
+- Auth: Yes (JWT)
+- Body (JSON):
+  - `password` (string, required, min 6)
