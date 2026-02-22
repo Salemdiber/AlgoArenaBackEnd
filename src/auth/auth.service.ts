@@ -1,55 +1,150 @@
-import { Injectable, UnauthorizedException } from '@nestjs/common';
+import {
+  Injectable,
+  UnauthorizedException,
+  NotFoundException,
+  BadRequestException,
+} from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import { UserService } from '../user/user.service';
 import { MailService } from '../mail/mail.service';
 import { v4 as uuidv4 } from 'uuid';
+import axios from 'axios';
+import * as crypto from 'crypto';
+import { ConfigService } from '@nestjs/config';
 
 @Injectable()
 export class AuthService {
-	constructor(private readonly users: UserService, private readonly jwtService: JwtService, private readonly mailService: MailService) {}
+  constructor(
+    private readonly users: UserService,
+    private readonly jwtService: JwtService,
+    private readonly mailService: MailService,
+    private readonly configService: ConfigService,
+  ) {}
 
-	async register(dto: any) {
-		return this.users.create(dto);
-	}
+  // 🔐 Vérification reCAPTCHA v2
+  private async verifyCaptcha(token: string): Promise<boolean> {
+    if (!token) {
+      throw new BadRequestException('Captcha token is required');
+    }
 
-	async validateUser(username: string, password: string) {
-		if (!password) return null;
-		const crypto = require('crypto');
-		const passwordHash = crypto.createHash('sha256').update(password).digest('hex');
-		const users = await this.users.findAll();
-		const user = users.find((u) => u.username === username);
-		if (user && user.passwordHash === passwordHash) {
-			const { passwordHash: _ph, ...rest } = user as any;
-			return rest;
-		}
-		return null;
-	}
+    try {
+      const secretKey = this.configService.get<string>('RECAPTCHA_SECRET');
+      const response = await axios.post(
+        'https://www.google.com/recaptcha/api/siteverify',
+        null,
+        {
+          params: {
+            secret: secretKey,
+            response: token,
+          },
+        },
+      );
 
-	async login(user: any) {
-		if (!user) throw new UnauthorizedException();
-		const payload = { sub: user._id || user.userId || user.id, username: user.username, role: user.role };
-		return { access_token: this.jwtService.sign(payload) };
-	}
+      if (!response.data.success) {
+        throw new UnauthorizedException('Captcha validation failed');
+      }
 
-	async forgotPassword(email: string) {
-		const user = await this.users.findByEmail(email);
-		if (!user) throw new Error('User not found');
+      // Vérifier le score si nécessaire (reCAPTCHA v3)
+      if (response.data.score < 0.5) {
+        throw new UnauthorizedException('Captcha score too low');
+      }
 
-		const resetToken = uuidv4();
-		const resetTokenExpires = new Date(Date.now() + (15 * 60 * 1000)); // 15 minutes
+      return true;
+    } catch (error) {
+      if (error instanceof UnauthorizedException || error instanceof BadRequestException) {
+        throw error;
+      }
+      throw new UnauthorizedException('Captcha verification error');
+    }
+  }
 
-		await this.users.setResetToken(email, resetToken, resetTokenExpires);
+  // 📝 REGISTER
+  async register(dto: any) {
+    const isHuman = await this.verifyCaptcha(dto.captchaToken);
+    if (!isHuman) {
+      throw new UnauthorizedException('Captcha validation failed');
+    }
 
-		const resetLink = `${process.env.FRONTEND_URL}/reset-password?token=${resetToken}`;
-		await this.mailService.sendResetPasswordEmail(email, resetLink);
+    return this.users.create(dto);
+  }
 
-		return { message: 'Reset email sent' };
-	}
+  // 🔎 VALIDATE USER
+  async validateUser(username: string, password: string) {
+    if (!password) return null;
 
-	async resetPassword(token: string, newPassword: string) {
-		const user = await this.users.resetPassword(token, newPassword);
-		if (!user) throw new Error('Invalid or expired token');
+    const passwordHash = crypto
+      .createHash('sha256')
+      .update(password)
+      .digest('hex');
 
-		return { message: 'Password reset successfully' };
-	}
+    const users = await this.users.findAll();
+    const user = users.find((u) => u.username === username);
+
+    if (user && user.passwordHash === passwordHash) {
+      const { passwordHash: _ph, ...rest } = user as any;
+      return rest;
+    }
+
+    return null;
+  }
+
+  // 🔑 LOGIN
+  async login(user: any, captchaToken: string) {
+    const isHuman = await this.verifyCaptcha(captchaToken);
+    if (!isHuman) {
+      throw new UnauthorizedException('Captcha validation failed');
+    }
+
+    if (!user) throw new UnauthorizedException();
+
+    const payload = {
+      sub: user._id || user.userId || user.id,
+      username: user.username,
+      role: user.role,
+    };
+
+    return {
+      access_token: this.jwtService.sign(payload),
+    };
+  }
+
+  // 📧 FORGOT PASSWORD
+  async forgotPassword(email: string, captchaToken: string) {
+    const isHuman = await this.verifyCaptcha(captchaToken);
+    if (!isHuman) {
+      throw new UnauthorizedException('Captcha validation failed');
+    }
+
+    const user = await this.users.findByEmail(email);
+
+    if (!user) {
+      throw new NotFoundException('User not found');
+    }
+
+    const token = uuidv4();
+    const expiresAt = new Date(Date.now() + 15 * 60 * 1000); // 15 minutes
+
+    // Sauvegarder le token en base de données
+    await this.users.setResetToken(email, token, expiresAt);
+
+    // Créer le lien de réinitialisation
+    const frontendUrl = this.configService.get<string>('FRONTEND_URL') || 'http://localhost:5173';
+    const resetLink = `${frontendUrl}/reset-password?token=${token}`;
+
+    // Envoyer l'email avec le lien complet
+    await this.mailService.sendResetPasswordEmail(email, resetLink);
+
+    return { message: 'Reset email sent successfully' };
+  }
+
+  // 🔄 RESET PASSWORD
+  async resetPassword(token: string, newPassword: string) {
+    const user = await this.users.resetPassword(token, newPassword);
+
+    if (!user) {
+      throw new BadRequestException('Invalid or expired token');
+    }
+
+    return { message: 'Password reset successfully' };
+  }
 }

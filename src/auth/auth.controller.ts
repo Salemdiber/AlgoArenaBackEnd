@@ -11,11 +11,14 @@ class LoginDto {
 
 	@IsString()
 	password: string;
+
+	@IsString()
+	captchaToken: string;
 }
 
 @Controller('auth')
 export class AuthController {
-	constructor(private readonly authService: AuthService) {}
+	constructor(private readonly authService: AuthService) { }
 
 	@Post('register')
 	async register(@Body() dto: CreateUserDto) {
@@ -28,12 +31,12 @@ export class AuthController {
 		if (!body || !body.username || !body.password) throw new BadRequestException('username and password are required');
 		const user = await this.authService.validateUser(body.username, body.password);
 		if (!user) throw new UnauthorizedException('Invalid credentials');
-		return this.authService.login(user);
+		return this.authService.login(user, body.captchaToken);
 	}
 
 	@Post('forgot-password')
 	async forgotPassword(@Body() dto: ForgotPasswordDto) {
-		return this.authService.forgotPassword(dto.email);
+		return this.authService.forgotPassword(dto.email, dto.recaptchaToken);
 	}
 
 	@Post('reset-password')
