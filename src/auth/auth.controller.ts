@@ -1,9 +1,11 @@
-import { Body, Controller, Post, Get, Param, UnauthorizedException, BadRequestException } from '@nestjs/common';
+import { Body, Controller, Post, Get, Req, Res, Param, UnauthorizedException, BadRequestException, UseGuards } from '@nestjs/common';
+import { AuthGuard } from '@nestjs/passport';
 import { IsString } from 'class-validator';
 import { AuthService } from './auth.service';
 import { CreateUserDto } from '../user/dto/create-user.dto';
 import { ForgotPasswordDto } from './dto/forgot-password.dto/forgot-password.dto';
 import { ResetPasswordDto, VerifyResetTokenDto } from './dto/reset-password.dto/reset-password.dto';
+import type { Response } from 'express';
 
 class LoginDto {
 	@IsString()
@@ -51,5 +53,37 @@ export class AuthController {
 	@Post('reset-password')
 	async resetPassword(@Body() dto: ResetPasswordDto) {
 		return this.authService.resetPassword(dto.token, dto.newPassword, dto.oldPassword);
+	}
+
+	@Get('google')
+	@UseGuards(AuthGuard('google'))
+	async googleAuth() {
+		// initiates the Google OAuth flow
+	}
+
+	@Get('google/callback')
+	@UseGuards(AuthGuard('google'))
+	async googleAuthRedirect(@Req() req, @Res() res: Response) {
+		const { access_token } = await this.authService.loginOAuth(req.user);
+		const isProduction = process.env.NODE_ENV === 'production';
+		const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:5173';
+		res.cookie('access_token', access_token, { path: '/', maxAge: 7 * 24 * 60 * 60 * 1000, sameSite: 'lax', httpOnly: true, secure: isProduction });
+		return res.redirect(frontendUrl);
+	}
+
+	@Get('github')
+	@UseGuards(AuthGuard('github'))
+	async githubAuth() {
+		// initiates the Github OAuth flow
+	}
+
+	@Get('github/callback')
+	@UseGuards(AuthGuard('github'))
+	async githubAuthRedirect(@Req() req, @Res() res: Response) {
+		const { access_token } = await this.authService.loginOAuth(req.user);
+		const isProduction = process.env.NODE_ENV === 'production';
+		const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:5173';
+		res.cookie('access_token', access_token, { path: '/', maxAge: 7 * 24 * 60 * 60 * 1000, sameSite: 'lax', httpOnly: true, secure: isProduction });
+		return res.redirect(frontendUrl);
 	}
 }
