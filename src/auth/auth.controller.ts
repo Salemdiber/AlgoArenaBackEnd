@@ -3,6 +3,8 @@ import { AuthGuard } from '@nestjs/passport';
 import { IsString } from 'class-validator';
 import { AuthService } from './auth.service';
 import { CreateUserDto } from '../user/dto/create-user.dto';
+import { ForgotPasswordDto } from './dto/forgot-password.dto/forgot-password.dto';
+import { ResetPasswordDto } from './dto/reset-password.dto/reset-password.dto';
 import type { Response } from 'express';
 
 class LoginDto {
@@ -11,6 +13,9 @@ class LoginDto {
 
 	@IsString()
 	password: string;
+
+	@IsString()
+	captchaToken: string;
 }
 
 @Controller('auth')
@@ -27,7 +32,17 @@ export class AuthController {
 		if (!body || !body.username || !body.password) throw new BadRequestException('username and password are required');
 		const user = await this.authService.validateUser(body.username, body.password);
 		if (!user) throw new UnauthorizedException('Invalid credentials');
-		return this.authService.login(user);
+		return this.authService.login(user, body.captchaToken);
+	}
+
+	@Post('forgot-password')
+	async forgotPassword(@Body() dto: ForgotPasswordDto) {
+		return this.authService.forgotPassword(dto.email, dto.recaptchaToken);
+	}
+
+	@Post('reset-password')
+	async resetPassword(@Body() dto: ResetPasswordDto) {
+		return this.authService.resetPassword(dto.token, dto.newPassword);
 	}
 
 	@Get('google')
