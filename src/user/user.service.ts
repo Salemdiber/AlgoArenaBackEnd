@@ -168,6 +168,18 @@ export class UserService {
     return { message: 'Password updated successfully' };
   }
 
+  async updateStatus(id: string, status: boolean): Promise<any> {
+    this.ensureValidObjectId(id);
+    const updated = await this.userModel
+      .findByIdAndUpdate(id, { status }, { new: true })
+      .lean()
+      .exec();
+    if (!updated) throw new NotFoundException('User not found');
+
+    const { passwordHash: _omit, ...rest } = updated as any;
+    return rest;
+  }
+
   async deleteAccount(userId: string, dto: DeleteAccountDto): Promise<{ message: string }> {
     this.ensureValidObjectId(userId);
     const user = await this.userModel.findById(userId).lean().exec();

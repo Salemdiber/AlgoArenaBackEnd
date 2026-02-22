@@ -25,6 +25,7 @@ import { CreateUserDto } from './dto/create-user.dto';
 import { UpdateProfileDto } from './dto/update-profile.dto';
 import { ChangePasswordDto } from './dto/change-password.dto';
 import { DeleteAccountDto } from './dto/delete-account.dto';
+import { UpdateStatusDto } from './dto/update-status.dto';
 
 const ALLOWED_IMAGE_TYPES = ['.jpg', '.jpeg', '.png', '.webp'];
 const ALLOWED_IMAGE_MIME_TYPES = [
@@ -70,7 +71,6 @@ export class UserController {
 	@UseGuards(JwtAuthGuard)
 	@Get('me')
 	async getMyProfile(@CurrentUser() user: { userId: string }) {
-		require('fs').appendFileSync('d:/4TWIN/Pi-JS/Next_Gen_Back/AlgoArenaBackEnd/debug_nest.log', JSON.stringify({ hit: 'me', user }) + '\n');
 		return this.userService.getMyProfile(user?.userId);
 	}
 
@@ -152,6 +152,44 @@ export class UserController {
 	async findOne(@Param('id') id: string) {
 		require('fs').appendFileSync('d:/4TWIN/Pi-JS/Next_Gen_Back/AlgoArenaBackEnd/debug_nest.log', JSON.stringify({ hit: ':id', id }) + '\n');
 		return await this.userService.findOne(id);
+	}
+
+	@UseGuards(JwtAuthGuard)
+	@Patch(':id/avatar')
+	@UseInterceptors(
+		FileInterceptor('avatar', {
+			storage: diskStorage({
+				destination: (_req, _file, cb) => {
+					const dir = join(process.cwd(), 'uploads', 'avatars');
+					mkdirSync(dir, { recursive: true });
+					cb(null, dir);
+				},
+				filename: (req, file, cb) => {
+					const ext = extname(file.originalname).toLowerCase();
+					cb(null, `${req.params.id}-${Date.now()}${ext}`);
+				},
+			}),
+			fileFilter: imageFileFilter,
+			limits: { fileSize: MAX_FILE_SIZE },
+		}),
+	)
+	async uploadAvatarByAdmin(
+		@Param('id') id: string,
+		@UploadedFile() file: Express.Multer.File,
+	) {
+		if (!file) {
+			throw new BadRequestException('Avatar file is required');
+		}
+		return this.userService.updateAvatar(id, file.filename);
+	}
+
+	@UseGuards(JwtAuthGuard)
+	@Patch(':id/status')
+	async updateStatus(
+		@Param('id') id: string,
+		@Body() dto: UpdateStatusDto,
+	) {
+		return this.userService.updateStatus(id, dto.status);
 	}
 
 	@UseGuards(JwtAuthGuard)
