@@ -1,14 +1,17 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model } from 'mongoose';
 import { CreateUserDto } from './dto/create-user.dto';
 
+import * as bcrypt from 'bcryptjs';
+
 @Injectable()
 export class UserService {
-  constructor(@InjectModel('User') private userModel: Model<any>) {}
+  constructor(@InjectModel('User') private userModel: Model<any>) { }
 
   async create(dto: CreateUserDto) {
-    const passwordHash = require('crypto').createHash('sha256').update(dto.password).digest('hex');
+    const salt = await bcrypt.genSalt(10);
+    const passwordHash = await bcrypt.hash(dto.password, salt);
     const created = await this.userModel.create({
       username: dto.username,
       passwordHash,
@@ -38,7 +41,10 @@ export class UserService {
     if (partial.avatar !== undefined) update.avatar = partial.avatar;
     if (partial.bio !== undefined) update.bio = partial.bio;
     if (partial.role) update.role = partial.role;
-    if (partial.password) update.passwordHash = require('crypto').createHash('sha256').update(partial.password).digest('hex');
+    if (partial.password) {
+      const salt = await bcrypt.genSalt(10);
+      update.passwordHash = await bcrypt.hash(partial.password, salt);
+    }
 
     const updated = await this.userModel.findByIdAndUpdate(id, update, { new: true }).lean().exec();
     if (!updated) throw new NotFoundException('User not found');
@@ -63,10 +69,42 @@ export class UserService {
     ).lean().exec();
   }
 
-  async resetPassword(token: string, newPassword: string) {
-    const passwordHash = require('crypto').createHash('sha256').update(newPassword).digest('hex');
+  async verifyResetToken(token: string) {
+    const user = await this.userModel.findOne({
+      resetToken: token,
+      resetTokenExpires: { $gt: new Date() },
+    }).lean().exec();
+    return !!user;
+  }
+
+  async resetPassword(token: string, newPassword: string, oldPassword?: string) {
+    const user: any = await this.userModel.findOne({
+      resetToken: token,
+      resetTokenExpires: { $gt: new Date() },
+    }).lean().exec();
+
+    if (!user) return null;
+
+    if (oldPassword) {
+      const isBcrypt = user.passwordHash.startsWith('$2a$') || user.passwordHash.startsWith('$2b$');
+      let isMatch = false;
+
+      if (isBcrypt) {
+        isMatch = await bcrypt.compare(oldPassword, user.passwordHash);
+      } else {
+        const hash = require('crypto').createHash('sha256').update(oldPassword).digest('hex');
+        isMatch = (user.passwordHash === hash);
+      }
+
+      if (!isMatch) {
+        throw new BadRequestException('Invalid old password');
+      }
+    }
+
+    const salt = await bcrypt.genSalt(10);
+    const passwordHash = await bcrypt.hash(newPassword, salt);
     return this.userModel.findOneAndUpdate(
-      { resetToken: token, resetTokenExpires: { $gt: new Date() } },
+      { _id: user._id },
       { passwordHash, resetToken: null, resetTokenExpires: null },
       { new: true }
     ).lean().exec();

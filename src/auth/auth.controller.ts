@@ -1,9 +1,9 @@
-import { Body, Controller, Post, UnauthorizedException, BadRequestException } from '@nestjs/common';
+import { Body, Controller, Post, Get, Param, UnauthorizedException, BadRequestException } from '@nestjs/common';
 import { IsString } from 'class-validator';
 import { AuthService } from './auth.service';
 import { CreateUserDto } from '../user/dto/create-user.dto';
 import { ForgotPasswordDto } from './dto/forgot-password.dto/forgot-password.dto';
-import { ResetPasswordDto } from './dto/reset-password.dto/reset-password.dto';
+import { ResetPasswordDto, VerifyResetTokenDto } from './dto/reset-password.dto/reset-password.dto';
 
 class LoginDto {
 	@IsString()
@@ -39,8 +39,17 @@ export class AuthController {
 		return this.authService.forgotPassword(dto.email, dto.recaptchaToken);
 	}
 
+	@Post('reset-password/verify')
+	async verifyResetToken(@Body() dto: VerifyResetTokenDto) {
+		const isValid = await this.authService.verifyResetToken(dto.token);
+		if (!isValid) {
+			throw new BadRequestException('Invalid or expired token');
+		}
+		return { valid: true };
+	}
+
 	@Post('reset-password')
 	async resetPassword(@Body() dto: ResetPasswordDto) {
-		return this.authService.resetPassword(dto.token, dto.newPassword);
+		return this.authService.resetPassword(dto.token, dto.newPassword, dto.oldPassword);
 	}
 }

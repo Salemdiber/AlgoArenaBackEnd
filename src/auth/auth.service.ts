@@ -10,6 +10,7 @@ import { MailService } from '../mail/mail.service';
 import { v4 as uuidv4 } from 'uuid';
 import axios from 'axios';
 import * as crypto from 'crypto';
+import * as bcrypt from 'bcryptjs';
 import { ConfigService } from '@nestjs/config';
 
 @Injectable()
@@ -19,7 +20,7 @@ export class AuthService {
     private readonly jwtService: JwtService,
     private readonly mailService: MailService,
     private readonly configService: ConfigService,
-  ) {}
+  ) { }
 
   // 🔐 Vérification reCAPTCHA v2
   private async verifyCaptcha(token: string): Promise<boolean> {
@@ -72,17 +73,28 @@ export class AuthService {
   async validateUser(username: string, password: string) {
     if (!password) return null;
 
-    const passwordHash = crypto
-      .createHash('sha256')
-      .update(password)
-      .digest('hex');
-
     const users = await this.users.findAll();
     const user = users.find((u) => u.username === username);
 
-    if (user && user.passwordHash === passwordHash) {
-      const { passwordHash: _ph, ...rest } = user as any;
-      return rest;
+    if (user) {
+      // Compatibility with old crypto hashes and new bcrypt hashes
+      const isBcrypt = user.passwordHash.startsWith('$2a$') || user.passwordHash.startsWith('$2b$');
+      let isMatch = false;
+
+      if (isBcrypt) {
+        isMatch = await bcrypt.compare(password, user.passwordHash);
+      } else {
+        const passwordHash = crypto
+          .createHash('sha256')
+          .update(password)
+          .digest('hex');
+        isMatch = (user.passwordHash === passwordHash);
+      }
+
+      if (isMatch) {
+        const { passwordHash: _ph, ...rest } = user as any;
+        return rest;
+      }
     }
 
     return null;
@@ -137,9 +149,14 @@ export class AuthService {
     return { message: 'Reset email sent successfully' };
   }
 
+  // 🔍 VERIFY RESET TOKEN
+  async verifyResetToken(token: string) {
+    return this.users.verifyResetToken(token);
+  }
+
   // 🔄 RESET PASSWORD
-  async resetPassword(token: string, newPassword: string) {
-    const user = await this.users.resetPassword(token, newPassword);
+  async resetPassword(token: string, newPassword: string, oldPassword?: string) {
+    const user = await this.users.resetPassword(token, newPassword, oldPassword);
 
     if (!user) {
       throw new BadRequestException('Invalid or expired token');

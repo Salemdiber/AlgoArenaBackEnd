@@ -1,4 +1,10 @@
-import { IsString, IsNotEmpty } from 'class-validator';
+import { IsString, IsNotEmpty, IsOptional } from 'class-validator';
+
+export class VerifyResetTokenDto {
+  @IsString()
+  @IsNotEmpty()
+  token: string;
+}
 
 export class ResetPasswordDto {
   @IsString()
@@ -8,4 +14,8 @@ export class ResetPasswordDto {
   @IsString()
   @IsNotEmpty()
   newPassword: string;
+
+  @IsString()
+  @IsOptional()
+  oldPassword?: string;
 }
