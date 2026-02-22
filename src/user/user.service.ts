@@ -45,6 +45,24 @@ export class UserService {
     return updated;
   }
 
+  async updateTwoFactorCode(id: string, twoFactorCode: string, twoFactorCodeExpires: Date) {
+    const updated = await this.userModel
+      .findByIdAndUpdate(id, { twoFactorCode, twoFactorCodeExpires }, { new: true })
+      .lean()
+      .exec();
+    if (!updated) throw new NotFoundException('User not found');
+    return updated;
+  }
+
+  async clearTwoFactorCode(id: string) {
+    const updated = await this.userModel
+      .findByIdAndUpdate(id, { twoFactorCode: null, twoFactorCodeExpires: null }, { new: true })
+      .lean()
+      .exec();
+    if (!updated) throw new NotFoundException('User not found');
+    return updated;
+  }
+
   async remove(id: string) {
     const deleted = await this.userModel.findByIdAndDelete(id).exec();
     if (!deleted) throw new NotFoundException('User not found');

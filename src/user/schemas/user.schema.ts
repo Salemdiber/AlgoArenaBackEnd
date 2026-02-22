@@ -9,6 +9,11 @@ export const UserSchema = new Schema(
     avatar: { type: String, default: null },
     bio: { type: String, default: null },
     status: { type: Boolean, default: true },
+    twoFactorEnabled: { type: Boolean, default: false },
+    twoFactorMethod: { type: String, enum: ['email', 'sms'], default: null },
+    twoFactorCode: { type: String, default: null },
+    twoFactorCodeExpires: { type: Date, default: null },
+    phoneNumber: { type: String, default: null },
   },
   { timestamps: true },
 );

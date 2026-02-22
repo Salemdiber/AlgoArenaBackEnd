@@ -37,4 +37,19 @@ export class User {
 
   @Column({ default: true })
   status: boolean;
+
+  @Column({ default: false })
+  twoFactorEnabled: boolean;
+
+  @Column({ type: 'varchar', nullable: true })
+  twoFactorMethod: 'email' | 'sms' | null;
+
+  @Column({ nullable: true })
+  twoFactorCode: string | null;
+
+  @Column({ type: 'timestamp', nullable: true })
+  twoFactorCodeExpires: Date | null;
+
+  @Column({ nullable: true })
+  phoneNumber: string | null;
 }
