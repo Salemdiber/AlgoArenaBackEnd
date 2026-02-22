@@ -100,7 +100,7 @@ export class AuthService {
     return null;
   }
 
-  // 🔑 LOGIN
+  // 🔑 LOGIN (with reCAPTCHA verification)
   async login(user: any, captchaToken: string) {
     const isHuman = await this.verifyCaptcha(captchaToken);
     if (!isHuman) {
@@ -118,6 +118,41 @@ export class AuthService {
     return {
       access_token: this.jwtService.sign(payload),
     };
+  }
+
+  // 🔑 LOGIN OAUTH (without reCAPTCHA, for Google/GitHub OAuth)
+  async loginOAuth(user: any) {
+    if (!user) throw new UnauthorizedException();
+    const rawId = user._id || user.userId || user.id;
+    const sub = rawId ? rawId.toString() : '';
+    const payload = { sub, username: user.username, role: user.role };
+    return { access_token: this.jwtService.sign(payload) };
+  }
+
+  // 🌐 VALIDATE OAUTH LOGIN (Google / GitHub)
+  async validateOAuthLogin(profile: any, provider: 'google' | 'github') {
+    const users = await this.users.findAll();
+    let user = users.find((u: any) =>
+      (provider === 'google' && u.googleId === profile.id) ||
+      (provider === 'github' && u.githubId === profile.id) ||
+      (u.email === profile.email)
+    );
+
+    if (!user) {
+      const randomPassword = crypto.randomBytes(16).toString('hex');
+      const dto: any = {
+        username: profile.username || `${provider}_${profile.id}`,
+        email: profile.email || `${profile.id}@${provider}.local`,
+        password: randomPassword,
+        role: 'Player',
+        avatar: profile.avatar || null,
+      };
+
+      user = await this.users.create(dto);
+    }
+
+    const { passwordHash: _ph, ...rest } = user as any;
+    return rest;
   }
 
   // 📧 FORGOT PASSWORD
