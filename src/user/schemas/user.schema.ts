@@ -9,6 +9,8 @@ export const UserSchema = new Schema(
     avatar: { type: String, default: null },
     bio: { type: String, default: null },
     status: { type: Boolean, default: true },
+    googleId: { type: String, default: null },
+    githubId: { type: String, default: null },
   },
   { timestamps: true },
 );
