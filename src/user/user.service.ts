@@ -191,4 +191,25 @@ export class UserService {
     await this.userModel.findByIdAndDelete(userId).exec();
     return { message: 'Account deleted successfully' };
   }
+
+  async findByEmail(email: string) {
+    return this.userModel.findOne({ email }).lean().exec();
+  }
+
+  async setResetToken(email: string, token: string, expires: Date) {
+    return this.userModel.findOneAndUpdate(
+      { email },
+      { resetToken: token, resetTokenExpires: expires },
+      { new: true }
+    ).lean().exec();
+  }
+
+  async resetPassword(token: string, newPassword: string) {
+    const passwordHash = crypto.createHash('sha256').update(newPassword).digest('hex');
+    return this.userModel.findOneAndUpdate(
+      { resetToken: token, resetTokenExpires: { $gt: new Date() } },
+      { passwordHash, resetToken: null, resetTokenExpires: null },
+      { new: true }
+    ).lean().exec();
+  }
 }

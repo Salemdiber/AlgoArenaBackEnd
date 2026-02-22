@@ -4,6 +4,7 @@ import { PassportModule } from '@nestjs/passport';
 import { AuthService } from './auth.service';
 import { AuthController } from './auth.controller';
 import { UserModule } from '../user/user.module';
+import { MailModule } from '../mail/mail.module';
 import { JwtStrategy } from './jwt.strategy';
 import { GoogleStrategy } from './strategies/google.strategy';
 import { GithubStrategy } from './strategies/github.strategy';
@@ -16,6 +17,7 @@ import { GithubStrategy } from './strategies/github.strategy';
       signOptions: { expiresIn: '1h' },
     }),
     UserModule,
+    MailModule,
   ],
   providers: [AuthService, JwtStrategy, GoogleStrategy, GithubStrategy],
   controllers: [AuthController],

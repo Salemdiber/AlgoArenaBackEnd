@@ -11,6 +11,8 @@ export const UserSchema = new Schema(
     status: { type: Boolean, default: true },
     googleId: { type: String, default: null },
     githubId: { type: String, default: null },
+    resetToken: { type: String, required: false, default: null },
+    resetTokenExpires: { type: Date, required: false, default: null },
   },
   { timestamps: true },
 );
