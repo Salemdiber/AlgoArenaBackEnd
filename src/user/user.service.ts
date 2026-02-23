@@ -154,6 +154,11 @@ export class UserService {
     return rest;
   }
 
+  async setRefreshTokenHash(userId: string, hash: string | null) {
+    this.ensureValidObjectId(userId);
+    await this.userModel.findByIdAndUpdate(userId, { refreshTokenHash: hash }).exec();
+  }
+
   async changePassword(userId: string, dto: ChangePasswordDto): Promise<{ message: string }> {
     this.ensureValidObjectId(userId);
     const user = await this.userModel.findById(userId).lean().exec();
@@ -209,6 +214,7 @@ export class UserService {
     await this.userModel.findByIdAndDelete(userId).exec();
     return { message: 'Account deleted successfully' };
   }
+}
 
   // ── Password Reset ───────────────────────────────────────────────────────
 
