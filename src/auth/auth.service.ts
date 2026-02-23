@@ -1,6 +1,11 @@
 import { Injectable, UnauthorizedException } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import { UserService } from '../user/user.service';
+import { Injectable, UnauthorizedException, NotFoundException, BadRequestException } from '@nestjs/common';
+import { JwtService } from '@nestjs/jwt';
+import { UserService } from '../user/user.service';
+import { RecaptchaService } from './recaptcha.service';
+import { EmailService } from './email.service';
 import * as crypto from 'crypto';
 
 @Injectable()
@@ -20,6 +25,30 @@ export class AuthService {
 		const user = users.reverse().find((u) => u.username === username);
 		if (user && user.passwordHash === passwordHash) {
 			const { passwordHash: _ph, ...rest } = user as any;
+	constructor(
+		private readonly users: UserService,
+		private readonly jwtService: JwtService,
+		private readonly recaptchaService: RecaptchaService,
+		private readonly emailService: EmailService,
+	) { }
+
+	async register(dto: any) {
+		if (!dto.recaptchaToken) throw new UnauthorizedException('reCAPTCHA token is required');
+		await this.recaptchaService.validate(dto.recaptchaToken);
+		return this.users.create(dto);
+	}
+
+	async validateUser(username: string, password: string, recaptchaToken?: string) {
+		if (!recaptchaToken) throw new UnauthorizedException('reCAPTCHA token is required');
+		await this.recaptchaService.validate(recaptchaToken);
+		if (!password) return null;
+		const crypto = require('crypto');
+		const passwordHash = crypto.createHash('sha256').update(password).digest('hex');
+
+		const user: any = await this.users.findLatestByUsernameOrEmail(username);
+
+		if (user && user.passwordHash === passwordHash) {
+			const { passwordHash: _ph, ...rest } = user;
 			return rest;
 		}
 		return null;
@@ -113,5 +142,42 @@ export class AuthService {
 		} catch (e) {
 			// ignore invalid token
 		}
+		return { access_token: this.jwtService.sign(payload) };
+	}
+
+	async requestPasswordReset(email: string, recaptchaToken: string) {
+		if (!recaptchaToken) throw new UnauthorizedException('reCAPTCHA token is required');
+		await this.recaptchaService.validate(recaptchaToken);
+
+		const user = await this.users.findByEmail(email);
+		if (!user) return { message: 'If email exists, a reset link was sent' };
+
+		const plainToken = crypto.randomBytes(32).toString('hex');
+		const tokenHash = crypto.createHash('sha256').update(plainToken).digest('hex');
+		const expires = new Date(Date.now() + 3600000); // 1 hour
+
+		await this.users.setResetPasswordToken(email, tokenHash, expires);
+		await this.emailService.sendPasswordResetEmail(email, plainToken);
+
+		return { message: 'Reset email sent' };
+	}
+
+	async resetPassword(token: string, newPassword: string, confirmPassword: string, recaptchaToken: string) {
+		if (!recaptchaToken) throw new UnauthorizedException('reCAPTCHA token is required');
+		await this.recaptchaService.validate(recaptchaToken);
+
+		if (newPassword !== confirmPassword) throw new BadRequestException('Passwords do not match');
+
+		const tokenHash = crypto.createHash('sha256').update(token).digest('hex');
+		const user = await this.users.findByResetPasswordToken(tokenHash);
+
+		if (!user) throw new BadRequestException('Invalid or expired token');
+
+		const passwordHash = crypto.createHash('sha256').update(newPassword).digest('hex');
+
+		const rawId = (user as any)._id || (user as any).userId || (user as any).id;
+		await this.users.updatePasswordAndClearToken(rawId.toString(), passwordHash);
+
+		return { message: 'Password updated successfully' };
 	}
 }

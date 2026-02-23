@@ -8,6 +8,8 @@ import { JwtStrategy } from './jwt.strategy';
 import { GoogleStrategy } from './strategies/google.strategy';
 import { GithubStrategy } from './strategies/github.strategy';
 import { RolesGuard } from './roles.guard';
+import { RecaptchaService } from './recaptcha.service';
+import { EmailService } from './email.service';
 
 @Module({
   imports: [
@@ -19,6 +21,7 @@ import { RolesGuard } from './roles.guard';
     UserModule,
   ],
   providers: [AuthService, JwtStrategy, GoogleStrategy, GithubStrategy, RolesGuard],
+  providers: [AuthService, JwtStrategy, GoogleStrategy, GithubStrategy, RecaptchaService, EmailService],
   controllers: [AuthController],
   exports: [AuthService],
 })
