@@ -7,6 +7,10 @@ import { UserModule } from '../user/user.module';
 import { JwtStrategy } from './jwt.strategy';
 import { GoogleStrategy } from './strategies/google.strategy';
 import { GithubStrategy } from './strategies/github.strategy';
+import { RolesGuard } from './roles.guard';
+import { RecaptchaService } from './recaptcha.service';
+import { EmailService } from './email.service';
+import { SettingsModule } from '../settings/settings.module';
 
 @Module({
   imports: [
@@ -16,8 +20,9 @@ import { GithubStrategy } from './strategies/github.strategy';
       signOptions: { expiresIn: '1h' },
     }),
     UserModule,
+    SettingsModule,
   ],
-  providers: [AuthService, JwtStrategy, GoogleStrategy, GithubStrategy],
+  providers: [AuthService, JwtStrategy, GoogleStrategy, GithubStrategy, RolesGuard, RecaptchaService, EmailService],
   controllers: [AuthController],
   exports: [AuthService],
 })
