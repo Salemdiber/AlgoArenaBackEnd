@@ -3,6 +3,7 @@ import { JwtService } from '@nestjs/jwt';
 import { UserService } from '../user/user.service';
 import { RecaptchaService } from './recaptcha.service';
 import { EmailService } from './email.service';
+import { SettingsService } from '../settings/settings.service';
 import * as crypto from 'crypto';
 
 @Injectable()
@@ -12,9 +13,14 @@ export class AuthService {
 		private readonly jwtService: JwtService,
 		private readonly recaptchaService: RecaptchaService,
 		private readonly emailService: EmailService,
+		private readonly settingsService: SettingsService,
 	) { }
 
 	async register(dto: any) {
+		const settings: any = await this.settingsService.getSettings();
+		if (settings && !settings.userRegistration) {
+			throw new BadRequestException('Registration is disabled');
+		}
 		if (!dto.recaptchaToken) throw new UnauthorizedException('reCAPTCHA token is required');
 		await this.recaptchaService.validate(dto.recaptchaToken);
 		return this.users.create(dto);
@@ -127,10 +133,7 @@ export class AuthService {
 		return { ok: true };
 	}
 
-	async requestPasswordReset(email: string, recaptchaToken: string) {
-		if (!recaptchaToken) throw new UnauthorizedException('reCAPTCHA token is required');
-		await this.recaptchaService.validate(recaptchaToken);
-
+	async requestPasswordReset(email: string) {
 		const user = await this.users.findByEmail(email);
 		if (!user) return { message: 'If email exists, a reset link was sent' };
 
@@ -144,10 +147,7 @@ export class AuthService {
 		return { message: 'Reset email sent' };
 	}
 
-	async resetPassword(token: string, newPassword: string, confirmPassword: string, recaptchaToken: string) {
-		if (!recaptchaToken) throw new UnauthorizedException('reCAPTCHA token is required');
-		await this.recaptchaService.validate(recaptchaToken);
-
+	async resetPassword(token: string, newPassword: string, confirmPassword: string) {
 		if (newPassword !== confirmPassword) throw new BadRequestException('Passwords do not match');
 
 		const tokenHash = crypto.createHash('sha256').update(token).digest('hex');
