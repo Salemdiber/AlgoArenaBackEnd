@@ -12,6 +12,7 @@ import { SessionsModule } from './sessions/sessions.module';
 import { SettingsModule } from './settings/settings.module';
 import { AuditLogModule } from './audit-logs/audit-log.module';
 import { MaintenanceGuard } from './settings/guards/maintenance.guard';
+import { ChallengesModule } from './challenges/challenges.module';
 
 @Module({
   imports: [
@@ -26,6 +27,7 @@ import { MaintenanceGuard } from './settings/guards/maintenance.guard';
     SessionsModule,
     SettingsModule,
     AuditLogModule,
+    ChallengesModule,
   ],
   controllers: [AppController],
   providers: [
