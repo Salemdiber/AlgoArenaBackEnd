@@ -14,6 +14,10 @@ export class UpdateSettingsDto {
   maintenanceMode?: boolean;
 
   @IsOptional()
+  @IsBoolean()
+  ollamaEnabled?: boolean;
+
+  @IsOptional()
   @IsNumber()
   @Min(1)
   apiRateLimit?: number;

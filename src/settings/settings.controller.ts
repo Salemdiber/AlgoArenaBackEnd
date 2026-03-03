@@ -54,6 +54,14 @@ export class SettingsController {
     return this.settingsService.updateSettings({ maintenanceMode: value });
   }
 
+  // PATCH /settings/ollama-enabled → Toggle Ollama AI classification on/off (admin only)
+  @Patch('ollama-enabled')
+  @UseGuards(AuthGuard('jwt'), RolesGuard)
+  @Roles('Admin')
+  async toggleOllamaEnabled(@Body('ollamaEnabled') value: boolean) {
+    return this.settingsService.updateSettings({ ollamaEnabled: value });
+  }
+
   // PATCH /settings/api-rate-limit → Update API rate limit (admin only)
   @Patch('api-rate-limit')
   @UseGuards(AuthGuard('jwt'), RolesGuard)
