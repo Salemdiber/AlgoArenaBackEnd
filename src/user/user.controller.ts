@@ -1,3 +1,4 @@
+import { ApiTags, ApiOperation, ApiResponse, ApiBody, ApiParam, ApiBearerAuth } from '@nestjs/swagger';
 import {
 	Controller,
 	Get,
@@ -31,13 +32,11 @@ import { UpdateStatusDto } from './dto/update-status.dto';
 import { UpdatePlacementDto } from './dto/update-placement.dto';
 import { AuditLogService } from '../audit-logs/audit-log.service';
 
+// Rank order for promo/demotion direction checks
+const RANK_ORDER = ['BRONZE', 'SILVER', 'GOLD', 'PLATINUM', 'DIAMOND'];
 
 const ALLOWED_IMAGE_TYPES = ['.jpg', '.jpeg', '.png', '.webp'];
-const ALLOWED_IMAGE_MIME_TYPES = [
-	'image/jpeg',
-	'image/png',
-	'image/webp',
-];
+const ALLOWED_IMAGE_MIME_TYPES = ['image/jpeg', 'image/png', 'image/webp'];
 const MAX_FILE_SIZE = 5 * 1024 * 1024; // 5 MB
 
 const avatarStorage = diskStorage({
@@ -59,14 +58,12 @@ const imageFileFilter = (
 ) => {
 	const ext = extname(file.originalname).toLowerCase();
 	if (!ALLOWED_IMAGE_TYPES.includes(ext) || !ALLOWED_IMAGE_MIME_TYPES.includes(file.mimetype)) {
-		return cb(
-			new BadRequestException('Only image files are allowed (jpg, jpeg, png, webp)'),
-			false,
-		);
+		return cb(new BadRequestException('Only image files are allowed (jpg, jpeg, png, webp)'), false);
 	}
 	cb(null, true);
 };
 
+@ApiTags('Users Profile')
 @Controller('user')
 export class UserController {
 	constructor(
@@ -78,7 +75,6 @@ export class UserController {
 		try {
 			appendFileSync(join(process.cwd(), 'debug_nest.log'), JSON.stringify(obj) + '\n');
 		} catch (e) {
-			// Don't throw - logging failure must not crash the app
 			console.error('Failed to write debug_nest.log', e?.message || e);
 		}
 	}
@@ -86,13 +82,161 @@ export class UserController {
 	// ── Account Settings (must be declared before /:id routes) ───────────────
 
 	@UseGuards(JwtAuthGuard)
+	@ApiBearerAuth()
+	@ApiOperation({
+		summary: 'Get my profile',
+		description: 'Returns the authenticated user\'s full profile (excluding password hash).',
+	})
+	@ApiResponse({ status: 200, description: 'Profile returned successfully' })
+	@ApiResponse({ status: 401, description: 'Unauthorized — missing or invalid token' })
 	@Get('me')
 	async getMyProfile(@CurrentUser() user: { userId: string }) {
 		this.safeDebugLog({ hit: 'me', user });
 		return this.userService.getMyProfile(user?.userId);
 	}
 
+	// ── Rank & XP Stats ──────────────────────────────────────────────────────
+
 	@UseGuards(JwtAuthGuard)
+	@ApiBearerAuth()
+	@ApiOperation({
+		summary: 'Get my rank & XP stats',
+		description: `
+Returns the authenticated user's gamification stats for the challenges rank bar.
+All values are computed from real database data.
+
+### Response Fields
+| Field | Type | Description |
+|---|---|---|
+| \`rank\` | \`string \\| null\` | BRONZE, SILVER, GOLD, PLATINUM, DIAMOND, or null if unranked |
+| \`xp\` | \`number\` | Total XP earned |
+| \`nextRankXp\` | \`number\` | XP threshold of the next rank |
+| \`progressPercentage\` | \`number\` | Progress within current rank band (0–100) |
+| \`streak\` | \`number\` | Current daily activity streak (days) |
+| \`isMaxRank\` | \`boolean\` | True when user is at DIAMOND (max rank) |
+
+### Example Response
+\`\`\`json
+{
+  "rank": "GOLD",
+  "xp": 2450,
+  "nextRankXp": 3000,
+  "progressPercentage": 63,
+  "streak": 7,
+  "isMaxRank": false
+}
+\`\`\`
+
+### Required Permissions
+Authenticated user (JWT required)
+		`,
+	})
+	@ApiResponse({
+		status: 200,
+		description: 'Rank stats returned',
+		schema: {
+			example: {
+				rank: 'GOLD',
+				xp: 2450,
+				nextRankXp: 3000,
+				progressPercentage: 63,
+				streak: 7,
+				isMaxRank: false,
+			},
+		},
+	})
+	@ApiResponse({ status: 401, description: 'Unauthorized' })
+	@ApiResponse({ status: 404, description: 'User not found' })
+	@Get('me/rank-stats')
+	async getMyRankStats(@CurrentUser() user: { userId: string; username?: string }) {
+		return this.userService.getRankStats(user?.userId);
+	}
+
+	@UseGuards(JwtAuthGuard)
+	@ApiBearerAuth()
+	@ApiOperation({
+		summary: 'Update my XP (and auto-update rank)',
+		description: `
+Adds or subtracts XP from the authenticated user. Rank is automatically recalculated.
+
+Audit logs are created for every call:
+- \`XP_UPDATED\` — always
+- \`RANK_PROMOTED\` — when rank increases
+- \`RANK_DEMOTED\` — when rank decreases
+
+### Example Request
+\`\`\`json
+{ "xpDelta": 150 }
+\`\`\`
+
+### Example Response
+\`\`\`json
+{
+  "previousXp": 2300,
+  "newXp": 2450,
+  "previousRank": "SILVER",
+  "newRank": "GOLD",
+  "rankChanged": true
+}
+\`\`\`
+		`,
+	})
+	@ApiBody({ schema: { example: { xpDelta: 150 } } })
+	@ApiResponse({ status: 200, description: 'XP updated and audit logged' })
+	@ApiResponse({ status: 400, description: 'Invalid xpDelta' })
+	@ApiResponse({ status: 401, description: 'Unauthorized' })
+	@Patch('me/xp')
+	async updateMyXp(
+		@CurrentUser() user: { userId: string; username?: string },
+		@Body() body: { xpDelta: number },
+	) {
+		const xpDelta = Number(body?.xpDelta);
+		if (!isFinite(xpDelta)) {
+			throw new BadRequestException('xpDelta must be a finite number');
+		}
+
+		const result = await this.userService.updateXpAndRank(user.userId, xpDelta);
+		const actor = user.username || `user:${user.userId}`;
+
+		// Audit: XP change
+		await this.auditLogService.create({
+			actionType: 'XP_UPDATED',
+			actor: 'System',
+			entityType: 'user',
+			targetId: user.userId,
+			targetLabel: actor,
+			previousState: { xp: result.previousXp, rank: result.previousRank },
+			newState: { xp: result.newXp, rank: result.newRank },
+			description: `System updated user ${actor} XP from ${result.previousXp} to ${result.newXp}`,
+			status: 'active',
+		});
+
+		// Audit: rank change
+		if (result.rankChanged) {
+			const prevIdx = result.previousRank ? RANK_ORDER.indexOf(result.previousRank) : -1;
+			const newIdx = RANK_ORDER.indexOf(result.newRank);
+			const promoted = newIdx > prevIdx;
+			await this.auditLogService.create({
+				actionType: promoted ? 'RANK_PROMOTED' : 'RANK_DEMOTED',
+				actor: 'System',
+				entityType: 'user',
+				targetId: user.userId,
+				targetLabel: actor,
+				previousState: { rank: result.previousRank },
+				newState: { rank: result.newRank },
+				description: `System ${promoted ? 'promoted' : 'demoted'} user ${actor} from ${result.previousRank ?? 'Unranked'} to ${result.newRank}`,
+				status: 'active',
+			});
+		}
+
+		return result;
+	}
+
+	@UseGuards(JwtAuthGuard)
+	@ApiBearerAuth()
+	@ApiOperation({ summary: 'Upload my avatar' })
+	@ApiResponse({ status: 200, description: 'Avatar uploaded' })
+	@ApiResponse({ status: 400, description: 'Invalid file' })
 	@Patch('me/avatar')
 	@UseInterceptors(
 		FileInterceptor('avatar', {
@@ -112,6 +256,9 @@ export class UserController {
 	}
 
 	@UseGuards(JwtAuthGuard)
+	@ApiBearerAuth()
+	@ApiOperation({ summary: 'Change my password' })
+	@ApiResponse({ status: 200, description: 'Password changed' })
 	@Patch('me/password')
 	@HttpCode(HttpStatus.OK)
 	async changePassword(
@@ -122,6 +269,9 @@ export class UserController {
 	}
 
 	@UseGuards(JwtAuthGuard)
+	@ApiBearerAuth()
+	@ApiOperation({ summary: 'Submit placement test result' })
+	@ApiResponse({ status: 200, description: 'Placement updated' })
 	@Patch('me/placement')
 	@HttpCode(HttpStatus.OK)
 	async updatePlacement(
@@ -132,6 +282,9 @@ export class UserController {
 	}
 
 	@UseGuards(JwtAuthGuard)
+	@ApiBearerAuth()
+	@ApiOperation({ summary: 'Update my profile (username, email, bio)' })
+	@ApiResponse({ status: 200, description: 'Profile updated' })
 	@Patch('me')
 	async updateProfile(
 		@CurrentUser() user: { userId: string },
@@ -141,6 +294,9 @@ export class UserController {
 	}
 
 	@UseGuards(JwtAuthGuard)
+	@ApiBearerAuth()
+	@ApiOperation({ summary: 'Delete my account' })
+	@ApiResponse({ status: 200, description: 'Account deleted' })
 	@Delete('me')
 	async deleteAccount(
 		@CurrentUser() user: { userId: string },
@@ -149,11 +305,13 @@ export class UserController {
 		return this.userService.deleteAccount(user.userId, dto);
 	}
 
-	// ── Existing CRUD endpoints ───────────────────────────────────────────────
+	// ── Admin CRUD ────────────────────────────────────────────────────────────
 
 	@UseGuards(JwtAuthGuard, RolesGuard)
 	@Roles('Admin')
-	@UseGuards(JwtAuthGuard)
+	@ApiBearerAuth()
+	@ApiOperation({ summary: 'Create a new admin account (Admin only)' })
+	@ApiResponse({ status: 201, description: 'Admin created' })
 	@Post('admin')
 	async createAdmin(@Body() dto: CreateUserDto, @CurrentUser() actor: { userId: string; username?: string }) {
 		try {
@@ -175,6 +333,8 @@ export class UserController {
 		}
 	}
 
+	@ApiOperation({ summary: 'Create a new user' })
+	@ApiResponse({ status: 201, description: 'User created' })
 	@Post()
 	async create(@Body() dto: CreateUserDto) {
 		try {
@@ -184,19 +344,26 @@ export class UserController {
 		}
 	}
 
+	@ApiOperation({ summary: 'List all users (Admin)' })
+	@ApiResponse({ status: 200, description: 'User list' })
 	@Get()
 	async findAll() {
 		return await this.userService.findAll();
 	}
 
+	@ApiOperation({ summary: 'Get a user by ID' })
+	@ApiParam({ name: 'id', description: 'MongoDB ObjectId of the user' })
+	@ApiResponse({ status: 200, description: 'User found' })
+	@ApiResponse({ status: 404, description: 'User not found' })
 	@Get(':id')
 	async findOne(@Param('id') id: string) {
 		this.safeDebugLog({ hit: ':id', id });
-		require('fs').appendFileSync('d:/4TWIN/Pi-JS/Next_Gen_Back/AlgoArenaBackEnd/debug_nest.log', JSON.stringify({ hit: ':id', id }) + '\n');
 		return await this.userService.findOne(id);
 	}
 
 	@UseGuards(JwtAuthGuard)
+	@ApiBearerAuth()
+	@ApiOperation({ summary: 'Upload avatar for a user by ID (Admin)' })
 	@Patch(':id/avatar')
 	@UseInterceptors(
 		FileInterceptor('avatar', {
@@ -226,6 +393,10 @@ export class UserController {
 	}
 
 	@UseGuards(JwtAuthGuard)
+	@ApiBearerAuth()
+	@ApiOperation({ summary: 'Enable or disable a user account (Admin)' })
+	@ApiParam({ name: 'id', description: 'User ID' })
+	@ApiResponse({ status: 200, description: 'Status updated and audit logged' })
 	@Patch(':id/status')
 	async updateStatus(
 		@Param('id') id: string,
@@ -259,19 +430,23 @@ export class UserController {
 	}
 
 	@UseGuards(JwtAuthGuard)
+	@ApiBearerAuth()
+	@ApiOperation({ summary: 'Update a user by ID (Admin)' })
+	@ApiParam({ name: 'id', description: 'User ID' })
+	@ApiResponse({ status: 200, description: 'User updated and audit logged' })
 	@Patch(':id')
-	async update(@Param('id') id: string, @Body() dto: Partial<CreateUserDto>, @CurrentUser() actor: { userId: string; username?: string }) {
+	async update(
+		@Param('id') id: string,
+		@Body() dto: Partial<CreateUserDto>,
+		@CurrentUser() actor: { userId: string; username?: string },
+	) {
 		const previous = await this.userService.findOne(id).catch(() => null) as any;
 		const result = await this.userService.update(id, dto) as any;
 
-		// Determine action type
 		let actionType = 'USER_ROLE_CHANGED';
-		let description = `User "${result.username}" was updated`;
+		let description = `Admin "${actor?.username || 'System'}" updated user "${result.username}"`;
 		if (dto.role && dto.role !== previous?.role) {
 			description = `Admin "${actor?.username || 'System'}" changed role of "${result.username}" from "${previous?.role}" to "${dto.role}"`;
-		} else {
-			actionType = 'USER_ROLE_CHANGED';
-			description = `Admin "${actor?.username || 'System'}" updated user "${result.username}"`;
 		}
 
 		await this.auditLogService.create({
