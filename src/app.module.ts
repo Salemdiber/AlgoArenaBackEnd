@@ -17,7 +17,6 @@ import { ChallengeModule } from './challenges/challenge.module';
 import { MaintenanceGuard } from './settings/guards/maintenance.guard';
 import { ChallengesModule } from './challenges/challenges.module';
 import { CacheModule } from './cache/cache.module';
-import { AiModule } from './ai/ai.module';
 
 @Module({
   imports: [
@@ -35,7 +34,6 @@ import { AiModule } from './ai/ai.module';
     AuditLogModule,
     ChallengesModule,
     CacheModule,
-    AiModule,
     AiModule,
     ChallengeModule,
   ],
