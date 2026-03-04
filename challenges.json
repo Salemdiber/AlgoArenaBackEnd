@@ -1,88 +1,54 @@
-﻿
 [
     {
-        "title": "Fibonacci Sequence",
+        "title": "Fibonacci Number",
         "difficulty": "Easy",
         "estimated_time_minutes": 5,
-        "statement": "Write a function that returns the Fibonacci sequence up to nth term. The Fibonacci sequence is a series of numbers in which each number is the sum of the two preceding ones.",
-        "input": "An integer n",
-        "output": "A list containing the first n terms of the Fibonacci sequence",
-        "constraints": "1 <= n <= 30",
-        "time_limit_seconds": 5,
-        "memory_limit_mb": 128,
+        "statement": "Write a program that calculates the nth Fibonacci number.",
+        "input": "The input is an integer n (0 <= n <= 10^6).",
+        "output": "The output is the nth Fibonacci number.",
+        "constraints": "Use a constant amount of memory and time.",
+        "time_limit_seconds": 1,
+        "memory_limit_mb": 1,
         "samples": [
-            {
-                "input": "7",
-                "output": "[0, 1, 1, 2, 3, 5, 8]"
-            },
-            {
-                "input": "5",
-                "output": "[0, 1, 1, 2, 3]"
-            },
-            {
-                "input": "10",
-                "output": "[0, 1, 1, 2, 3, 5, 8, 13, 21, 34]"
-            }
+            {"input": "0", "output": "0", "explanation": "F(0) is 0."},
+            {"input": "1", "output": "1", "explanation": "F(1) is 1."},
+            {"input": "2", "output": "1", "explanation": "F(2) is 1."}
         ],
-        "tags": [
-            "recursion"
-        ]
+        "tags": ["dynamic programming"]
     },
     {
-        "title": "Array Reversal",
+        "title": "Array Sorting",
         "difficulty": "Medium",
         "estimated_time_minutes": 10,
-        "statement": "Write a function to reverse an array in-place without using any extra space.",
-        "input": "An array of integers",
-        "output": "The input array reversed",
-        "constraints": "1 <= len(array) <= 10^6",
-        "time_limit_seconds": 2,
-        "memory_limit_mb": 512,
+        "statement": "Write a program that sorts an array of integers in ascending order.",
+        "input": "The input is an array of integers A of size N (0 < N <= 1000).",
+        "output": "The output is the sorted array A.",
+        "constraints": "Use a sorting algorithm that has a worst-case time complexity of O(N log N).",
+        "time_limit_seconds": 1,
+        "memory_limit_mb": 1,
         "samples": [
-            {
-                "input": "[3,4,5,1]",
-                "output": "[1,5,4,3]"
-            },
-            {
-                "input": "[7,8,9]",
-                "output": "[9,8,7]"
-            },
-            {
-                "input": "[6,2,9,0]",
-                "output": "[0,9,2,6]"
-            }
+            {"input": "[5, 1, 2, 3, 4]", "output": "[1, 2, 3, 4, 5]", "explanation": "The array is sorted in ascending order."},
+            {"input": "[-5, 0, -2, 3, 1]", "output": "[-5, -2, 0, 1, 3]", "explanation": "The array is sorted in ascending order."},
+            {"input": "[1, 1, 1, 1, 1]", "output": "[1, 1, 1, 1, 1]", "explanation": "The array is already sorted."}
         ],
-        "tags": [
-            "two pointers"
-        ]
+        "tags": ["sorting"]
     },
     {
-        "title": "Palindrome Checker",
+        "title": "String Palindrome",
         "difficulty": "Hard",
-        "estimated_time_minutes": 15,
-        "statement": "Write a function to check if the input string is a palindrome.",
-        "input": "A string of alphanumeric characters",
-        "output": "True if the input is a palindrome, False otherwise",
-        "constraints": "1 <= len(string) <= 2*10^5",
-        "time_limit_seconds": 3,
-        "memory_limit_mb": 256,
+        "estimated_time_minutes": 20,
+        "statement": "Write a program that checks if a given string is a palindrome.",
+        "input": "The input is a string S (0 < |S| <= 1000), consisting of lowercase English letters.",
+        "output": "The output is a boolean value: true if S is a palindrome, and false otherwise.",
+        "constraints": "Solve the problem in O(N) time complexity and O(1) space complexity.",
+        "time_limit_seconds": 1,
+        "memory_limit_mb": 1,
         "samples": [
-            {
-                "input": "\"madam\"",
-                "output": "True"
-            },
-            {
-                "input": "\"hello\"",
-                "output": "False"
-            },
-            {
-                "input": "\"A man, a plan, a canal: Panama\"",
-                "output": "False"
-            }
+            {"input": "madam", "output": "true", "explanation": "The string is the same read forwards and backwards."},
+            {"input": "hello", "output": "false", "explanation": "The string is not the same read forwards and backwards."},
+            {"input": "a", "output": "true", "explanation": "The string is a single character, so it is a palindrome."}
         ],
-        "tags": [
-            "two pointers"
-        ]
+        "tags": ["strings", "two pointers"]
     }
 ]
 
