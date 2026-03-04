@@ -11,6 +11,8 @@ import { RolesGuard } from './roles.guard';
 import { RecaptchaService } from './recaptcha.service';
 import { EmailService } from './email.service';
 import { SettingsModule } from '../settings/settings.module';
+import { CacheModule } from '../cache/cache.module';
+import { AiModule } from '../ai/ai.module';
 
 @Module({
   imports: [
@@ -21,6 +23,8 @@ import { SettingsModule } from '../settings/settings.module';
     }),
     UserModule,
     SettingsModule,
+    CacheModule,
+    AiModule,
   ],
   providers: [AuthService, JwtStrategy, GoogleStrategy, GithubStrategy, RolesGuard, RecaptchaService, EmailService],
   controllers: [AuthController],

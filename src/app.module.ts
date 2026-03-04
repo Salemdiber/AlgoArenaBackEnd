@@ -14,6 +14,8 @@ import { SettingsModule } from './settings/settings.module';
 import { AuditLogModule } from './audit-logs/audit-log.module';
 import { MaintenanceGuard } from './settings/guards/maintenance.guard';
 import { ChallengesModule } from './challenges/challenges.module';
+import { CacheModule } from './cache/cache.module';
+import { AiModule } from './ai/ai.module';
 
 @Module({
   imports: [
@@ -30,6 +32,8 @@ import { ChallengesModule } from './challenges/challenges.module';
     OnboardingModule,
     AuditLogModule,
     ChallengesModule,
+    CacheModule,
+    AiModule,
   ],
   controllers: [AppController],
   providers: [
