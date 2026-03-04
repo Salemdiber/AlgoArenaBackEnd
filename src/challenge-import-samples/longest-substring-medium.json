@@ -1,0 +1,54 @@
+{
+    "title": "Longest Substring Without Repeating Characters",
+    "description": "Given a string s, find the length of the longest substring without repeating characters. Return the length as an integer.",
+    "difficulty": "Medium",
+    "topic": "Strings",
+    "xpReward": 120,
+    "estimatedTime": 25,
+    "constraints": [
+        "0 <= s.length <= 5 * 10^4",
+        "s consists of English letters, digits, symbols and spaces"
+    ],
+    "examples": [
+        {
+            "input": "s = \"abcabcbb\"",
+            "output": "3",
+            "explanation": "The answer is \"abc\", with the length of 3."
+        },
+        {
+            "input": "s = \"bbbbb\"",
+            "output": "1",
+            "explanation": "The answer is \"b\", with the length of 1."
+        }
+    ],
+    "testCases": [
+        {
+            "input": "abcabcbb",
+            "output": "3"
+        },
+        {
+            "input": "bbbbb",
+            "output": "1"
+        },
+        {
+            "input": "pwwkew",
+            "output": "3"
+        },
+        {
+            "input": "",
+            "output": "0"
+        },
+        {
+            "input": "au",
+            "output": "2"
+        }
+    ],
+    "hints": [
+        "Use a sliding window with two pointers.",
+        "A hash set can track characters currently in the window.",
+        "Move the left pointer right when you encounter a duplicate."
+    ],
+    "starterCode": {
+        "javascript": "/**\n * @param {string} s\n * @return {number}\n */\nfunction lengthOfLongestSubstring(s) {\n  // Write your solution here\n}\n"
+    }
+}
