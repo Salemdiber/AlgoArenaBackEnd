@@ -57,13 +57,14 @@ Content-Type: application/json
     @ApiResponse({ status: 400, description: 'Bad Request - Invalid parameters/body' })
     @ApiResponse({ status: 401, description: 'Unauthorized - Missing or invalid token' })
     @ApiResponse({ status: 403, description: 'Forbidden - Insufficient permissions' })
-    @Post('register')
+	@Post('register')
 	async register(@Body() dto: CreateUserDto) {
 		const existingUsername = await this.users.findByUsername(dto.username);
 		if (existingUsername) throw new BadRequestException('Username is already taken');
 
 		const existingEmail = await this.users.findByEmail(dto.email);
 		if (existingEmail) throw new BadRequestException('Email is already taken');
+		this.authService.ensurePasswordIsSafe(dto.password, dto.username, dto.email);
 
 		return this.authService.register(dto);
 	}
@@ -106,9 +107,14 @@ Content-Type: application/json
 			return { available: true };
 		}
 		if (body.email) {
+			const validation = await this.authService.validateDeliverableEmail(body.email);
+			if (!validation.valid) {
+				return { available: false, message: validation.message, reason: validation.reason };
+			}
+
 			const existingEmail = await this.users.findByEmail(body.email);
 			if (existingEmail) return { available: false, message: 'Email is already taken' };
-			return { available: true };
+			return { available: true, suspicious: validation.suspicious };
 		}
 		throw new BadRequestException('Must provide username or email');
 	}
