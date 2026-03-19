@@ -26,8 +26,21 @@ export class ChallengesController {
 
   // GET /challenges - Retrieve all challenges
   @Get()
-  findAll() {
-    return this.service.findAll();
+  async findAll() {
+    const challenges = await this.service.findAll();
+    return { challenges };
+  }
+
+  // GET /challenges/public - Retrieve all published challenges
+  @Get('public')
+  findPublished() {
+    return this.service.findPublished();
+  }
+
+  // GET /challenges/public/:id - Retrieve a specific published challenge by id
+  @Get('public/:id')
+  findPublishedById(@Param('id') id: string) {
+    return this.service.findPublishedById(id);
   }
 
   // GET /challenges/:id - Retrieve a specific challenge by id

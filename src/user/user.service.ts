@@ -17,6 +17,25 @@ import { ChangePasswordDto } from './dto/change-password.dto';
 import { DeleteAccountDto } from './dto/delete-account.dto';
 import { UpdatePlacementDto } from './dto/update-placement.dto';
 
+// ── Rank system constants (single source of truth) ──────────────────────────
+export const RANK_THRESHOLDS: Record<string, number> = {
+  BRONZE: 500,
+  SILVER: 1500,
+  GOLD: 3000,
+  PLATINUM: 5000,
+  DIAMOND: 10000,
+};
+
+const RANK_ORDER = ['BRONZE', 'SILVER', 'GOLD', 'PLATINUM', 'DIAMOND'];
+
+/** Returns the rank name a user should hold based on their XP. */
+export function xpToRank(xp: number): string {
+  let rank = 'BRONZE';
+  for (const r of RANK_ORDER) {
+    if (xp >= RANK_THRESHOLDS[r]) rank = r;
+  }
+  return rank;
+}
 
 @Injectable()
 export class UserService {
@@ -74,7 +93,7 @@ export class UserService {
     return updated;
   }
 
-  // ── Account Settings ─────────────────────────────────────────────────────
+  // ── Account Settings ──────────────────────────────────────────────────────
 
   async getMyProfile(userId: string): Promise<any> {
     this.ensureValidObjectId(userId);
@@ -85,26 +104,103 @@ export class UserService {
     return rest;
   }
 
+  // ── Rank & XP Stats ───────────────────────────────────────────────────────
+
+  /**
+   * Returns gamification stats for the rank bar on the front office challenges page.
+   * All values are derived from real DB data — no hardcoding.
+   *
+   * @returns rank, xp, nextRankXp (XP ceiling of next rank),
+   *          progressPercentage (within current rank band), streak, isMaxRank
+   */
+  async getRankStats(userId: string): Promise<{
+    rank: string | null;
+    xp: number;
+    nextRankXp: number;
+    progressPercentage: number;
+    streak: number;
+    isMaxRank: boolean;
+  }> {
+    this.ensureValidObjectId(userId);
+    const user = await this.userModel.findById(userId).lean().exec() as any;
+    if (!user) throw new NotFoundException('User not found');
+
+    const xp: number = user.xp ?? 0;
+    const rank: string | null = user.rank ?? null;
+    const streak: number = user.streak ?? 0;
+
+    // No rank yet (pre-placement)
+    if (!rank) {
+      return {
+        rank: null,
+        xp,
+        nextRankXp: RANK_THRESHOLDS['BRONZE'],
+        progressPercentage: 0,
+        streak,
+        isMaxRank: false,
+      };
+    }
+
+    const rankIdx = RANK_ORDER.indexOf(rank);
+    const isMaxRank = rankIdx === RANK_ORDER.length - 1;
+
+    // XP floor = the threshold of the previous rank (0 for BRONZE)
+    const xpFloor = rankIdx > 0 ? RANK_THRESHOLDS[RANK_ORDER[rankIdx - 1]] : 0;
+    // XP ceiling = threshold of current rank
+    const xpCeil = RANK_THRESHOLDS[rank];
+    // Next rank XP threshold
+    const nextRankXp = isMaxRank ? xpCeil : RANK_THRESHOLDS[RANK_ORDER[rankIdx + 1]];
+
+    // Progress within the current rank band
+    const bandWidth = xpCeil - xpFloor;
+    const xpInBand = Math.max(0, xp - xpFloor);
+    const progressPercentage = isMaxRank
+      ? 100
+      : Math.min(100, Math.round((xpInBand / bandWidth) * 100));
+
+    return { rank, xp, nextRankXp, progressPercentage, streak, isMaxRank };
+  }
+
+  /**
+   * Adds (or subtracts) XP from a user and auto-promotes / demotes their rank.
+   * Returns change details for audit logging in the controller.
+   */
+  async updateXpAndRank(userId: string, xpDelta: number): Promise<{
+    previousXp: number;
+    newXp: number;
+    previousRank: string | null;
+    newRank: string;
+    rankChanged: boolean;
+  }> {
+    this.ensureValidObjectId(userId);
+    const user = await this.userModel.findById(userId).lean().exec() as any;
+    if (!user) throw new NotFoundException('User not found');
+
+    const previousXp: number = user.xp ?? 0;
+    const previousRank: string | null = user.rank ?? null;
+    const newXp = Math.max(0, previousXp + xpDelta);
+    const newRank = xpToRank(newXp);
+    const rankChanged = newRank !== previousRank;
+
+    await this.userModel.findByIdAndUpdate(userId, { xp: newXp, rank: newRank }).exec();
+
+    return { previousXp, newXp, previousRank, newRank, rankChanged };
+  }
+
   async updateAvatar(userId: string, filename: string): Promise<{ message: string; avatarUrl: string }> {
     this.ensureValidObjectId(userId);
     const user = await this.userModel.findById(userId).lean().exec();
     if (!user) throw new NotFoundException('User not found');
 
-    // Remove old avatar file from disk if one exists
     if ((user as any).avatar) {
       const oldPath = join(process.cwd(), (user as any).avatar);
-      try {
-        await fs.promises.unlink(oldPath);
-      } catch {
-        // File may have been removed already — safe to ignore
-      }
+      try { await fs.promises.unlink(oldPath); } catch { /* already gone */ }
     }
 
     const avatarPath = `/uploads/avatars/${filename}`;
     const updated = await this.userModel
       .findByIdAndUpdate(userId, { avatar: avatarPath }, { new: true })
-      .lean()
-      .exec();
+      .lean().exec();
     if (!updated) throw new NotFoundException('User not found');
 
     return { message: 'Avatar updated successfully', avatarUrl: avatarPath };
@@ -112,11 +208,7 @@ export class UserService {
 
   async updateProfile(userId: string, dto: UpdateProfileDto): Promise<any> {
     this.ensureValidObjectId(userId);
-    if (
-      dto.username === undefined
-      && dto.email === undefined
-      && dto.bio === undefined
-    ) {
+    if (dto.username === undefined && dto.email === undefined && dto.bio === undefined) {
       throw new BadRequestException('At least one field is required: username, email, or bio');
     }
 
@@ -141,8 +233,7 @@ export class UserService {
 
     const updated = await this.userModel
       .findByIdAndUpdate(userId, update, { new: true })
-      .lean()
-      .exec();
+      .lean().exec();
     if (!updated) throw new NotFoundException('User not found');
 
     const { passwordHash: _omit, ...rest } = updated as any;
@@ -156,17 +247,11 @@ export class UserService {
 
   // ── Speed Challenge Placement ─────────────────────────────────────────────
 
-  /**
-   * Set rank / xp / level from the Speed Challenge placement test.
-   * Only applies once (if rank is still null); subsequent calls are ignored
-   * unless force=true is passed (reserved for admin resets).
-   */
   async updatePlacement(userId: string, dto: UpdatePlacementDto, force = false): Promise<any> {
     this.ensureValidObjectId(userId);
     const user = await this.userModel.findById(userId).lean().exec() as any;
     if (!user) throw new NotFoundException('User not found');
 
-    // Prevent overwriting an existing rank unless forced
     if (user.rank && !force) {
       const { passwordHash: _omit, ...rest } = user;
       return rest;
@@ -178,14 +263,12 @@ export class UserService {
         { rank: dto.rank, xp: dto.xp, level: dto.level ?? dto.rank },
         { new: true },
       )
-      .lean()
-      .exec() as any;
+      .lean().exec() as any;
 
     const { passwordHash: _omit, ...rest } = updated;
     return rest;
   }
 
-  // Store generated placement problems for a user
   async setPlacementProblems(userId: string, problems: any[]) {
     this.ensureValidObjectId(userId);
     await this.userModel.findByIdAndUpdate(userId, { placementProblems: problems }, { new: true }).exec();
@@ -215,8 +298,7 @@ export class UserService {
     this.ensureValidObjectId(id);
     const updated = await this.userModel
       .findByIdAndUpdate(id, { status }, { new: true })
-      .lean()
-      .exec();
+      .lean().exec();
     if (!updated) throw new NotFoundException('User not found');
 
     const { passwordHash: _omit, ...rest } = updated as any;
@@ -233,21 +315,16 @@ export class UserService {
       throw new UnauthorizedException('Invalid password');
     }
 
-    // Remove avatar from disk if it exists
     if ((user as any).avatar) {
       const avatarPath = join(process.cwd(), (user as any).avatar);
-      try {
-        await fs.promises.unlink(avatarPath);
-      } catch {
-        // File may not exist — safe to ignore
-      }
+      try { await fs.promises.unlink(avatarPath); } catch { /* already gone */ }
     }
 
     await this.userModel.findByIdAndDelete(userId).exec();
     return { message: 'Account deleted successfully' };
   }
 
-  // ── Password Reset ───────────────────────────────────────────────────────
+  // ── Password Reset ────────────────────────────────────────────────────────
 
   async findByEmail(email: string) {
     return this.userModel.findOne({ email }).sort({ createdAt: -1 }).exec();
@@ -257,13 +334,7 @@ export class UserService {
     return this.userModel.findOne({ username }).sort({ createdAt: -1 }).exec();
   }
 
-
-  /**
-   * Sets the reset password token and a confirmation code (6 digits) for the user.
-   * The confirmation code is required to complete the password reset.
-   */
   async setResetPasswordToken(email: string, tokenHash: string, expires: Date, confirmationCode?: string) {
-    // Generate a 6-digit code if not provided
     const code = confirmationCode || Math.floor(100000 + Math.random() * 900000).toString();
     return this.userModel.findOneAndUpdate(
       { email },
@@ -276,7 +347,6 @@ export class UserService {
       { new: true, sort: { createdAt: -1 } },
     ).exec();
   }
-
 
   async findByResetPasswordToken(tokenHash: string) {
     return this.userModel.findOne({
@@ -297,7 +367,6 @@ export class UserService {
   }
 
   async verifyResetPasswordCode(email: string, code: string) {
-    // Mark the code as verified if it matches and is not expired
     const user = await this.findByEmailAndResetCode(email, String(code).trim());
     if (!user) return null;
     await this.userModel.findByIdAndUpdate(user._id, { resetPasswordCodeVerified: true }).exec();
@@ -318,4 +387,3 @@ export class UserService {
     ).exec();
   }
 }
-

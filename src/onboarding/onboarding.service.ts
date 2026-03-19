@@ -1,4 +1,5 @@
 import { Injectable, Logger } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import { SettingsService } from '../settings/settings.service';
 
 // ─── DTOs ─────────────────────────────────────────────────────────────────────
@@ -70,8 +71,12 @@ export class OnboardingService {
   private readonly logger = new Logger(OnboardingService.name);
   private readonly ollamaUrl = process.env.OLLAMA_URL || 'http://localhost:11434';
   private readonly model = process.env.OLLAMA_MODEL || 'deepseek-coder:6.7b-instruct-q4_K_M';
+  private readonly ollamaTimeout: number;
 
-  constructor(private readonly settingsService: SettingsService) {}
+  constructor(private readonly settingsService: SettingsService, private readonly configService: ConfigService) {
+    const timeoutEnv = this.configService.get<string>('OLLAMA_TIMEOUT');
+    this.ollamaTimeout = timeoutEnv ? parseInt(timeoutEnv, 10) : 300000; // Default to 5 min
+  }
 
   // ── Public entry point ──────────────────────────────────────────────────────
 
@@ -259,7 +264,7 @@ Respond ONLY with valid JSON — no markdown, no explanation:
         stream: false,
         options: { temperature: 0.1, num_predict: 256 },
       }),
-      signal: AbortSignal.timeout(30_000),
+      signal: AbortSignal.timeout(this.ollamaTimeout),
     });
 
     if (!res.ok) throw new Error(`Ollama HTTP ${res.status}: ${await res.text()}`);
@@ -268,9 +273,30 @@ Respond ONLY with valid JSON — no markdown, no explanation:
   }
 
   private extractJson(raw: string): Record<string, unknown> {
-    const match = raw.match(/\{[\s\S]*?\}/);
-    if (!match) throw new Error('No JSON object found in Ollama response');
-    return JSON.parse(match[0]);
+    // Try to find JSON with proper brace matching
+    const startIdx = raw.indexOf('{');
+    if (startIdx === -1) throw new Error('No JSON object found in Ollama response');
+
+    let braceCount = 0;
+    let endIdx = -1;
+    for (let i = startIdx; i < raw.length; i++) {
+      if (raw[i] === '{') braceCount++;
+      if (raw[i] === '}') braceCount--;
+      if (braceCount === 0) {
+        endIdx = i;
+        break;
+      }
+    }
+
+    if (endIdx === -1) throw new Error('Malformed JSON in Ollama response: unmatched braces');
+
+    const jsonStr = raw.substring(startIdx, endIdx + 1);
+    try {
+      return JSON.parse(jsonStr);
+    } catch (e) {
+      this.logger.error(`Failed to parse JSON: ${jsonStr}`);
+      throw new Error(`Invalid JSON in Ollama response: ${(e as Error).message}`);
+    }
   }
 
   // ── Helpers ──────────────────────────────────────────────────────────────────
