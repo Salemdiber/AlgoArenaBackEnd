@@ -10,6 +10,7 @@ import { GithubStrategy } from './strategies/github.strategy';
 import { RolesGuard } from './roles.guard';
 import { RecaptchaService } from './recaptcha.service';
 import { EmailService } from './email.service';
+import { EmailDeliverabilityService } from './email-deliverability.service';
 import { SettingsModule } from '../settings/settings.module';
 import { CacheModule } from '../cache/cache.module';
 import { AiModule } from '../ai/ai.module';
@@ -26,7 +27,7 @@ import { AiModule } from '../ai/ai.module';
     CacheModule,
     AiModule,
   ],
-  providers: [AuthService, JwtStrategy, GoogleStrategy, GithubStrategy, RolesGuard, RecaptchaService, EmailService],
+  providers: [AuthService, JwtStrategy, GoogleStrategy, GithubStrategy, RolesGuard, RecaptchaService, EmailService, EmailDeliverabilityService],
   controllers: [AuthController],
   exports: [AuthService],
 })
