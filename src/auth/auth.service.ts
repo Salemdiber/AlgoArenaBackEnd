@@ -4,6 +4,11 @@ import { UserService } from '../user/user.service';
 import { RecaptchaService } from './recaptcha.service';
 import { EmailService } from './email.service';
 import { SettingsService } from '../settings/settings.service';
+import { EmailDeliverabilityService, EmailValidationResult } from './email-deliverability.service';
+import {
+	PASSWORD_SECURITY_MESSAGE,
+	passwordContainsIdentityData,
+} from './password-policy.util';
 import * as crypto from 'crypto';
 import { spawn } from 'child_process';
 import * as fs from 'fs';
@@ -17,6 +22,7 @@ export class AuthService {
 		private readonly recaptchaService: RecaptchaService,
 		private readonly emailService: EmailService,
 		private readonly settingsService: SettingsService,
+		private readonly emailDeliverabilityService: EmailDeliverabilityService,
 	) { }
 
 	async register(dto: any) {
@@ -26,7 +32,14 @@ export class AuthService {
 		}
 		if (!dto.recaptchaToken) throw new UnauthorizedException('reCAPTCHA token is required');
 		await this.recaptchaService.validate(dto.recaptchaToken);
+		this.ensurePasswordIsSafe(dto.password, dto.username, dto.email);
+		const emailValidation = await this.validateDeliverableEmail(dto.email);
+		if (!emailValidation.valid) {
+			throw new BadRequestException(emailValidation.message);
+		}
+
 		const created = await this.users.create(dto);
+		await this.emailService.sendWelcomeEmail(dto.email, dto.username);
 
 		// Generate placement problems synchronously at registration (blocking, with timeout)
 		try {
@@ -39,6 +52,16 @@ export class AuthService {
 		}
 
 		return created;
+	}
+
+	async validateDeliverableEmail(email: string): Promise<EmailValidationResult> {
+		return this.emailDeliverabilityService.validate(email);
+	}
+
+	ensurePasswordIsSafe(password: string, username: string, email: string) {
+		if (passwordContainsIdentityData(password, username, email)) {
+			throw new BadRequestException(PASSWORD_SECURITY_MESSAGE);
+		}
 	}
 
 	private generateChallenges(timeoutMs = 15000): Promise<any[] | null> {
@@ -127,6 +150,9 @@ export class AuthService {
 			};
 
 			const created = await this.users.create(dto);
+			if (profile.email) {
+				await this.emailService.sendWelcomeEmail(profile.email, dto.username);
+			}
 
 			// Update the created user with the provider ID
 			const updateQ: any = {};
