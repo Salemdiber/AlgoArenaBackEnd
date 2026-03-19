@@ -21,8 +21,10 @@ export const UserSchema = new Schema(
     rank: { type: String, enum: ['BRONZE', 'SILVER', 'GOLD', 'PLATINUM', 'DIAMOND', null], default: null },
     xp: { type: Number, default: 0 },
     level: { type: String, default: null },
+    streak: { type: Number, default: 0 },
     // Generated placement problems (stored at registration)
     placementProblems: { type: Array, default: [] },
+
   },
   { timestamps: true },
 );

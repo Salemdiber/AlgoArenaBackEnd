@@ -1,3 +1,4 @@
+import { ApiTags, ApiOperation, ApiResponse, ApiBody, ApiParam, ApiQuery, ApiBearerAuth } from '@nestjs/swagger';
 import {
   Controller,
   Get,
@@ -31,6 +32,7 @@ function formatValue(val: any): string {
   return String(val);
 }
 
+@ApiTags('Platform Settings')
 @Controller('settings')
 export class SettingsController {
   constructor(
@@ -39,13 +41,73 @@ export class SettingsController {
   ) { }
 
   // GET /settings → Returns current settings
-  @Get()
+          @ApiOperation({
+        summary: 'GetBaseRoute_1 operation',
+        description: `
+### Required Permissions
+- Public or authenticated User
+
+### Example Request
+\`\`\`http
+GET /api/ HTTP/1.1
+Content-Type: application/json
+\`\`\`
+
+### Example Response
+\`\`\`json
+{
+  "success": true,
+  "data": { "id": "example-123" }
+}
+\`\`\`
+
+### Test Cases (Working Examples)
+- **Valid Test Case**: Call \`GET /api/\` with valid data -> Returns \`200 OK\` or \`201 Created\`.
+- **Invalid Test Case**: Call with malformed data or missing fields -> Returns \`400 Bad Request\`.
+- **Authentication Test Case**: Call without token (if protected) -> Returns \`401 Unauthorized\`.
+        `
+    })
+    @ApiResponse({ status: 200, description: 'Successful operation' })
+    @ApiResponse({ status: 400, description: 'Bad Request - Invalid parameters/body' })
+    @ApiResponse({ status: 401, description: 'Unauthorized - Missing or invalid token' })
+    @ApiResponse({ status: 403, description: 'Forbidden - Insufficient permissions' })
+    @Get()
   async getSettings() {
     return this.settingsService.getSettings();
   }
 
   // PUT /settings → Update all settings (admin only)
-  @Put()
+          @ApiOperation({
+        summary: 'PutBaseRoute_2 operation',
+        description: `
+### Required Permissions
+- Public or authenticated User
+
+### Example Request
+\`\`\`http
+PUT /api/ HTTP/1.1
+Content-Type: application/json
+\`\`\`
+
+### Example Response
+\`\`\`json
+{
+  "success": true,
+  "data": { "id": "example-123" }
+}
+\`\`\`
+
+### Test Cases (Working Examples)
+- **Valid Test Case**: Call \`PUT /api/\` with valid data -> Returns \`200 OK\` or \`201 Created\`.
+- **Invalid Test Case**: Call with malformed data or missing fields -> Returns \`400 Bad Request\`.
+- **Authentication Test Case**: Call without token (if protected) -> Returns \`401 Unauthorized\`.
+        `
+    })
+    @ApiResponse({ status: 200, description: 'Successful operation' })
+    @ApiResponse({ status: 400, description: 'Bad Request - Invalid parameters/body' })
+    @ApiResponse({ status: 401, description: 'Unauthorized - Missing or invalid token' })
+    @ApiResponse({ status: 403, description: 'Forbidden - Insufficient permissions' })
+    @Put()
   @UseGuards(AuthGuard('jwt'), RolesGuard)
   @Roles('Admin')
   async updateSettings(
@@ -85,7 +147,37 @@ export class SettingsController {
   }
 
   // PATCH /settings/user-registration → Toggle user registration on/off (admin only)
-  @Patch('user-registration')
+          @ApiOperation({
+        summary: 'Patch_user_registration_3 operation',
+        description: `
+### Required Permissions
+- Public or authenticated User
+
+### Example Request
+\`\`\`http
+PATCH /api/user-registration HTTP/1.1
+Content-Type: application/json
+\`\`\`
+
+### Example Response
+\`\`\`json
+{
+  "success": true,
+  "data": { "id": "example-123" }
+}
+\`\`\`
+
+### Test Cases (Working Examples)
+- **Valid Test Case**: Call \`PATCH /api/user-registration\` with valid data -> Returns \`200 OK\` or \`201 Created\`.
+- **Invalid Test Case**: Call with malformed data or missing fields -> Returns \`400 Bad Request\`.
+- **Authentication Test Case**: Call without token (if protected) -> Returns \`401 Unauthorized\`.
+        `
+    })
+    @ApiResponse({ status: 200, description: 'Successful operation' })
+    @ApiResponse({ status: 400, description: 'Bad Request - Invalid parameters/body' })
+    @ApiResponse({ status: 401, description: 'Unauthorized - Missing or invalid token' })
+    @ApiResponse({ status: 403, description: 'Forbidden - Insufficient permissions' })
+    @Patch('user-registration')
   @UseGuards(AuthGuard('jwt'), RolesGuard)
   @Roles('Admin')
   async toggleUserRegistration(
@@ -116,7 +208,37 @@ export class SettingsController {
   }
 
   // PATCH /settings/ai-battles → Toggle AI battles on/off (admin only)
-  @Patch('ai-battles')
+          @ApiOperation({
+        summary: 'Patch_ai_battles_4 operation',
+        description: `
+### Required Permissions
+- Public or authenticated User
+
+### Example Request
+\`\`\`http
+PATCH /api/ai-battles HTTP/1.1
+Content-Type: application/json
+\`\`\`
+
+### Example Response
+\`\`\`json
+{
+  "success": true,
+  "data": { "id": "example-123" }
+}
+\`\`\`
+
+### Test Cases (Working Examples)
+- **Valid Test Case**: Call \`PATCH /api/ai-battles\` with valid data -> Returns \`200 OK\` or \`201 Created\`.
+- **Invalid Test Case**: Call with malformed data or missing fields -> Returns \`400 Bad Request\`.
+- **Authentication Test Case**: Call without token (if protected) -> Returns \`401 Unauthorized\`.
+        `
+    })
+    @ApiResponse({ status: 200, description: 'Successful operation' })
+    @ApiResponse({ status: 400, description: 'Bad Request - Invalid parameters/body' })
+    @ApiResponse({ status: 401, description: 'Unauthorized - Missing or invalid token' })
+    @ApiResponse({ status: 403, description: 'Forbidden - Insufficient permissions' })
+    @Patch('ai-battles')
   @UseGuards(AuthGuard('jwt'), RolesGuard)
   @Roles('Admin')
   async toggleAiBattles(
@@ -147,7 +269,37 @@ export class SettingsController {
   }
 
   // PATCH /settings/maintenance-mode → Toggle maintenance mode on/off (admin only)
-  @Patch('maintenance-mode')
+          @ApiOperation({
+        summary: 'Patch_maintenance_mode_5 operation',
+        description: `
+### Required Permissions
+- Public or authenticated User
+
+### Example Request
+\`\`\`http
+PATCH /api/maintenance-mode HTTP/1.1
+Content-Type: application/json
+\`\`\`
+
+### Example Response
+\`\`\`json
+{
+  "success": true,
+  "data": { "id": "example-123" }
+}
+\`\`\`
+
+### Test Cases (Working Examples)
+- **Valid Test Case**: Call \`PATCH /api/maintenance-mode\` with valid data -> Returns \`200 OK\` or \`201 Created\`.
+- **Invalid Test Case**: Call with malformed data or missing fields -> Returns \`400 Bad Request\`.
+- **Authentication Test Case**: Call without token (if protected) -> Returns \`401 Unauthorized\`.
+        `
+    })
+    @ApiResponse({ status: 200, description: 'Successful operation' })
+    @ApiResponse({ status: 400, description: 'Bad Request - Invalid parameters/body' })
+    @ApiResponse({ status: 401, description: 'Unauthorized - Missing or invalid token' })
+    @ApiResponse({ status: 403, description: 'Forbidden - Insufficient permissions' })
+    @Patch('maintenance-mode')
   @UseGuards(AuthGuard('jwt'), RolesGuard)
   @Roles('Admin')
   async toggleMaintenanceMode(
@@ -178,7 +330,37 @@ export class SettingsController {
   }
 
   // PATCH /settings/ollama-enabled → Toggle Ollama AI classification on/off (admin only)
-  @Patch('ollama-enabled')
+          @ApiOperation({
+        summary: 'Patch_ollama_enabled_6 operation',
+        description: `
+### Required Permissions
+- Public or authenticated User
+
+### Example Request
+\`\`\`http
+PATCH /api/ollama-enabled HTTP/1.1
+Content-Type: application/json
+\`\`\`
+
+### Example Response
+\`\`\`json
+{
+  "success": true,
+  "data": { "id": "example-123" }
+}
+\`\`\`
+
+### Test Cases (Working Examples)
+- **Valid Test Case**: Call \`PATCH /api/ollama-enabled\` with valid data -> Returns \`200 OK\` or \`201 Created\`.
+- **Invalid Test Case**: Call with malformed data or missing fields -> Returns \`400 Bad Request\`.
+- **Authentication Test Case**: Call without token (if protected) -> Returns \`401 Unauthorized\`.
+        `
+    })
+    @ApiResponse({ status: 200, description: 'Successful operation' })
+    @ApiResponse({ status: 400, description: 'Bad Request - Invalid parameters/body' })
+    @ApiResponse({ status: 401, description: 'Unauthorized - Missing or invalid token' })
+    @ApiResponse({ status: 403, description: 'Forbidden - Insufficient permissions' })
+    @Patch('ollama-enabled')
   @UseGuards(AuthGuard('jwt'), RolesGuard)
   @Roles('Admin')
   async toggleOllamaEnabled(@Body('ollamaEnabled') value: boolean) {
@@ -186,7 +368,37 @@ export class SettingsController {
   }
 
   // PATCH /settings/api-rate-limit → Update API rate limit (admin only)
-  @Patch('api-rate-limit')
+          @ApiOperation({
+        summary: 'Patch_api_rate_limit_7 operation',
+        description: `
+### Required Permissions
+- Public or authenticated User
+
+### Example Request
+\`\`\`http
+PATCH /api/api-rate-limit HTTP/1.1
+Content-Type: application/json
+\`\`\`
+
+### Example Response
+\`\`\`json
+{
+  "success": true,
+  "data": { "id": "example-123" }
+}
+\`\`\`
+
+### Test Cases (Working Examples)
+- **Valid Test Case**: Call \`PATCH /api/api-rate-limit\` with valid data -> Returns \`200 OK\` or \`201 Created\`.
+- **Invalid Test Case**: Call with malformed data or missing fields -> Returns \`400 Bad Request\`.
+- **Authentication Test Case**: Call without token (if protected) -> Returns \`401 Unauthorized\`.
+        `
+    })
+    @ApiResponse({ status: 200, description: 'Successful operation' })
+    @ApiResponse({ status: 400, description: 'Bad Request - Invalid parameters/body' })
+    @ApiResponse({ status: 401, description: 'Unauthorized - Missing or invalid token' })
+    @ApiResponse({ status: 403, description: 'Forbidden - Insufficient permissions' })
+    @Patch('api-rate-limit')
   @UseGuards(AuthGuard('jwt'), RolesGuard)
   @Roles('Admin')
   async updateApiRateLimit(
@@ -217,7 +429,37 @@ export class SettingsController {
   }
 
   // PATCH /settings/code-execution-limit → Update code execution limit (admin only)
-  @Patch('code-execution-limit')
+          @ApiOperation({
+        summary: 'Patch_code_execution_limit_8 operation',
+        description: `
+### Required Permissions
+- Public or authenticated User
+
+### Example Request
+\`\`\`http
+PATCH /api/code-execution-limit HTTP/1.1
+Content-Type: application/json
+\`\`\`
+
+### Example Response
+\`\`\`json
+{
+  "success": true,
+  "data": { "id": "example-123" }
+}
+\`\`\`
+
+### Test Cases (Working Examples)
+- **Valid Test Case**: Call \`PATCH /api/code-execution-limit\` with valid data -> Returns \`200 OK\` or \`201 Created\`.
+- **Invalid Test Case**: Call with malformed data or missing fields -> Returns \`400 Bad Request\`.
+- **Authentication Test Case**: Call without token (if protected) -> Returns \`401 Unauthorized\`.
+        `
+    })
+    @ApiResponse({ status: 200, description: 'Successful operation' })
+    @ApiResponse({ status: 400, description: 'Bad Request - Invalid parameters/body' })
+    @ApiResponse({ status: 401, description: 'Unauthorized - Missing or invalid token' })
+    @ApiResponse({ status: 403, description: 'Forbidden - Insufficient permissions' })
+    @Patch('code-execution-limit')
   @UseGuards(AuthGuard('jwt'), RolesGuard)
   @Roles('Admin')
   async updateCodeExecutionLimit(

@@ -20,9 +20,21 @@ export class ChallengesService {
     return this.model.find().exec();
   }
 
+  async findPublished(): Promise<Challenge[]> {
+    return this.model.find({ status: 'published' }).exec();
+  }
+
   async findOne(id: string): Promise<Challenge> {
     const found = await this.model.findById(id).exec();
     if (!found) throw new NotFoundException(`Challenge with id ${id} not found`);
+    return found;
+  }
+
+  async findPublishedById(id: string): Promise<Challenge> {
+    const found = await this.model.findById(id).exec();
+    if (!found || found.status !== 'published') {
+      throw new NotFoundException(`Published challenge with id ${id} not found`);
+    }
     return found;
   }
 
