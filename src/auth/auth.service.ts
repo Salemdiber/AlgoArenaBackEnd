@@ -6,6 +6,11 @@ import { RecaptchaService } from './recaptcha.service';
 import { EmailService } from './email.service';
 import { SettingsService } from '../settings/settings.service';
 import { CacheService } from '../cache/cache.service';
+import { EmailDeliverabilityService, EmailValidationResult } from './email-deliverability.service';
+import {
+	PASSWORD_SECURITY_MESSAGE,
+	passwordContainsIdentityData,
+} from './password-policy.util';
 import * as crypto from 'crypto';
 import * as fs from 'fs';
 import { join } from 'path';
@@ -23,6 +28,7 @@ export class AuthService {
 		private readonly settingsService: SettingsService,
 		private readonly configService: ConfigService,
 		private readonly cacheService: CacheService,
+		private readonly emailDeliverabilityService: EmailDeliverabilityService,
 	) { }
 
 	async register(dto: any) {
@@ -32,7 +38,14 @@ export class AuthService {
 		}
 		if (!dto.recaptchaToken) throw new UnauthorizedException('reCAPTCHA token is required');
 		await this.recaptchaService.validate(dto.recaptchaToken);
+		this.ensurePasswordIsSafe(dto.password, dto.username, dto.email);
+		const emailValidation = await this.validateDeliverableEmail(dto.email);
+		if (!emailValidation.valid) {
+			throw new BadRequestException(emailValidation.message);
+		}
+
 		const created = await this.users.create(dto);
+		await this.emailService.sendWelcomeEmail(dto.email, dto.username);
 
 		// Generate placement problems synchronously at registration (blocking, with timeout)
 		try {
@@ -53,6 +66,18 @@ export class AuthService {
 			return null;
 		}
 
+	async validateDeliverableEmail(email: string): Promise<EmailValidationResult> {
+		return this.emailDeliverabilityService.validate(email);
+	}
+
+	ensurePasswordIsSafe(password: string, username: string, email: string) {
+		if (passwordContainsIdentityData(password, username, email)) {
+			throw new BadRequestException(PASSWORD_SECURITY_MESSAGE);
+		}
+	}
+
+	private generateChallenges(timeoutMs = 15000): Promise<any[] | null> {
+		const model = process.env.OLLAMA_MODEL || 'deepseek-coder:6.7b-instruct-q4_K_M';
 		const promptPath = join(process.cwd(), 'prompt.txt');
 		let prompt = '';
 		if (fs.existsSync(promptPath)) {
@@ -183,6 +208,9 @@ export class AuthService {
 			};
 
 			const created = await this.users.create(dto);
+			if (profile.email) {
+				await this.emailService.sendWelcomeEmail(profile.email, dto.username);
+			}
 
 			// Update the created user with the provider ID
 			const updateQ: any = {};
