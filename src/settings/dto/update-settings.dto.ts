@@ -27,6 +27,14 @@ export class UpdateSettingsDto {
   ollamaEnabled?: boolean;
 
   @IsOptional()
+  @IsBoolean()
+  disableCopyPaste?: boolean;
+
+  @IsOptional()
+  @IsBoolean()
+  disableTabSwitch?: boolean;
+
+  @IsOptional()
   @IsNumber()
   @Min(1)
   apiRateLimit?: number;

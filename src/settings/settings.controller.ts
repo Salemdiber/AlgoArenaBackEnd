@@ -23,6 +23,9 @@ const SETTING_LABELS: Record<string, string> = {
   userRegistration: 'User Registration',
   aiBattles: 'AI Battles',
   maintenanceMode: 'Maintenance Mode',
+  ollamaEnabled: 'AI Classification',
+  disableCopyPaste: 'Disable Copy/Paste',
+  disableTabSwitch: 'Disable Tab Switch',
   apiRateLimit: 'API Requests per Hour',
   codeExecutionLimit: 'Code Executions per Day',
 };

@@ -60,12 +60,6 @@ export class AuthService {
 		return created;
 	}
 
-	private async generateChallenges(timeoutMs = 15000): Promise<any[] | null> {
-		if (!this.groqApiKey) {
-			console.warn('GROQ_API_KEY not configured — challenges cannot be generated');
-			return null;
-		}
-
 	async validateDeliverableEmail(email: string): Promise<EmailValidationResult> {
 		return this.emailDeliverabilityService.validate(email);
 	}
@@ -76,7 +70,7 @@ export class AuthService {
 		}
 	}
 
-	private generateChallenges(timeoutMs = 15000): Promise<any[] | null> {
+	private async generateChallenges(timeoutMs = 15000): Promise<any[] | null> {
 		const model = process.env.OLLAMA_MODEL || 'deepseek-coder:6.7b-instruct-q4_K_M';
 		const promptPath = join(process.cwd(), 'prompt.txt');
 		let prompt = '';
