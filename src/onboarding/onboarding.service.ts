@@ -20,7 +20,10 @@ export interface ProblemScore {
   title: string;
   difficulty: string;
   exactitude: number; // 0-100
-  complexity: number; // 0-100
+  complexity: number; // 0-100 (time efficiency)
+  space: number;      // 0-100 (space/memory efficiency)
+  timeComplexity?: string; // e.g. "O(n)", optional
+  complexite?: string; // french label alias for timeComplexity
   style: number;      // 0-100
   composite: number;  // 0-100 weighted
   notes: string;
@@ -34,18 +37,18 @@ export interface ClassificationResult {
   xp: number;
   totalScore: number;
   breakdown: ProblemScore[];
-  aiScores: { exactitude: number; complexity: number; style: number };
+  aiScores: { exactitude: number; complexity: number; space: number; style: number };
   message: string;
 }
 
 // ─── Rank tiers (highest first) ───────────────────────────────────────────────
 
 const RANK_TIERS = [
-  { min: 85, rank: 'DIAMOND', label: '💎 Diamond', color: '#a855f7', gradient: ['#a855f7', '#7c3aed'] as [string, string], xp: 500 },
-  { min: 70, rank: 'PLATINUM', label: '🔷 Platinum', color: '#22d3ee', gradient: ['#22d3ee', '#06b6d4'] as [string, string], xp: 380 },
-  { min: 55, rank: 'GOLD', label: '🥇 Gold', color: '#facc15', gradient: ['#facc15', '#f59e0b'] as [string, string], xp: 250 },
-  { min: 35, rank: 'SILVER', label: '🥈 Silver', color: '#c0c0c0', gradient: ['#c0c0c0', '#a8a8a8'] as [string, string], xp: 120 },
-  { min: 0, rank: 'BRONZE', label: '🥉 Bronze', color: '#cd7f32', gradient: ['#cd7f32', '#a0522d'] as [string, string], xp: 0 },
+  { min: 85, rank: 'DIAMOND', label: 'Diamond', color: '#a855f7', gradient: ['#a855f7', '#7c3aed'] as [string, string], xp: 500 },
+  { min: 70, rank: 'PLATINUM', label: 'Platinum', color: '#22d3ee', gradient: ['#22d3ee', '#06b6d4'] as [string, string], xp: 380 },
+  { min: 55, rank: 'GOLD', label: 'Gold', color: '#facc15', gradient: ['#facc15', '#f59e0b'] as [string, string], xp: 250 },
+  { min: 35, rank: 'SILVER', label: 'Silver', color: '#c0c0c0', gradient: ['#c0c0c0', '#a8a8a8'] as [string, string], xp: 120 },
+  { min: 0, rank: 'BRONZE', label: 'Bronze', color: '#cd7f32', gradient: ['#cd7f32', '#a0522d'] as [string, string], xp: 0 },
 ];
 
 const RANK_MESSAGES: Record<string, string> = {
@@ -110,11 +113,13 @@ export class OnboardingService {
     const solvedBreakdown = breakdown.filter((b) => b.composite > 0);
     let avgExactitude = 0;
     let avgComplexity = 0;
+    let avgSpace = 0;
     let avgStyle = 0;
 
     if (solvedBreakdown.length > 0) {
       avgExactitude = solvedBreakdown.reduce((s, b) => s + b.exactitude, 0) / solvedBreakdown.length;
       avgComplexity = solvedBreakdown.reduce((s, b) => s + b.complexity, 0) / solvedBreakdown.length;
+      avgSpace = solvedBreakdown.reduce((s, b) => s + (b.space ?? 50), 0) / solvedBreakdown.length;
       avgStyle = solvedBreakdown.reduce((s, b) => s + b.style, 0) / solvedBreakdown.length;
     }
 
@@ -142,6 +147,7 @@ export class OnboardingService {
       aiScores: {
         exactitude: Math.round(avgExactitude),
         complexity: Math.round(avgComplexity),
+        space: Math.round(avgSpace),
         style: Math.round(avgStyle),
       },
       message: RANK_MESSAGES[tier.rank],
@@ -170,6 +176,9 @@ export class OnboardingService {
       difficulty: s.difficulty,
       exactitude: s.solved ? baseScore : 0,
       complexity: s.solved ? 50 : 0,
+      space: s.solved ? 50 : 0,
+      timeComplexity: 'O(?)',
+      complexite: 'O(?)',
       style: s.solved ? 50 : 0,
       composite: s.solved ? baseScore : 0,
       notes: s.solved ? 'Rule-based estimate (AI classification disabled).' : 'Not solved.',
@@ -183,7 +192,7 @@ export class OnboardingService {
       xp: tier.xp,
       totalScore: baseScore,
       breakdown,
-      aiScores: { exactitude: baseScore, complexity: 50, style: 50 },
+      aiScores: { exactitude: baseScore, complexity: 50, space: 50, style: 50 },
       message: RANK_MESSAGES[tier.rank] + ' (AI classification disabled)',
     };
   }
@@ -207,8 +216,13 @@ export class OnboardingService {
 
       const exactitude = this.clamp(Number(parsed.exactitude) || 50);
       const complexity = this.clamp(Number(parsed.complexity) || 50);
+      // space may be provided as 'space' or 'memory' or similar keys
+      const rawSpace = Number(parsed.space ?? parsed.memory ?? (parsed as any).space_complexity ?? (parsed as any).spaceComplexity ?? NaN);
+      const space = Number.isFinite(rawSpace) ? this.clamp(rawSpace) : 50;
       const style = this.clamp(Number(parsed.style) || 50);
-      const composite = Math.round(exactitude * 0.40 + complexity * 0.35 + style * 0.25);
+      // parse optional time complexity notation (strings like O(n), O(n log n), etc.)
+      const timeComplexity = String((parsed.complexityNotation ?? parsed.complexity_notation ?? parsed.timeComplexity ?? parsed.time_complexity ?? parsed.complexity_text ?? parsed.complexityStr ?? parsed.complexity) || '').trim() || 'O(?)';
+      const composite = Math.round(exactitude * 0.40 + complexity * 0.30 + style * 0.25 + space * 0.05);
 
       return {
         problemId: sol.problemId,
@@ -216,6 +230,9 @@ export class OnboardingService {
         difficulty: sol.difficulty,
         exactitude,
         complexity,
+        space,
+        timeComplexity,
+        complexite: timeComplexity,
         style,
         composite,
         notes: String(parsed.notes ?? ''),
@@ -223,16 +240,18 @@ export class OnboardingService {
     } catch (err) {
       this.logger.warn(`AI scoring failed for "${sol.title}": ${(err as Error)?.message}`);
       // Graceful fallback: difficulty-adjusted base score
-      const base =
-        sol.difficulty === 'HARD' ? 70 : sol.difficulty === 'MEDIUM' ? 60 : 50;
+      const base = sol.difficulty === 'HARD' ? 70 : sol.difficulty === 'MEDIUM' ? 60 : 50;
       return {
         problemId: sol.problemId,
         title: sol.title,
         difficulty: sol.difficulty,
         exactitude: base,
         complexity: 50,
+        space: 50,
+        timeComplexity: 'O(?)',
+        complexite: 'O(?)',
         style: 50,
-        composite: Math.round(base * 0.40 + 50 * 0.35 + 50 * 0.25),
+        composite: Math.round(base * 0.40 + 50 * 0.30 + 50 * 0.25 + 50 * 0.05),
         notes: 'AI analysis unavailable — baseline estimate applied.',
       };
     }
@@ -251,14 +270,17 @@ Submitted solution:
 ${sol.code}
 \`\`\`
 
-Score this solution on three axes, each from 0 to 100:
+Score this solution on four axes, each from 0 to 100:
 - exactitude: Is the algorithm logic correct? Would it pass all standard test cases? (0 = completely wrong, 100 = perfectly correct)
-- complexity: Is the time/space complexity optimal or near-optimal for this problem? (0 = brute force, 100 = optimal)
+- complexity: Is the time complexity optimal or near-optimal for this problem? (0 = brute force, 100 = optimal)
+- space: Is the memory usage / space complexity optimal or near-optimal? (0 = uses excessive memory, 100 = memory-optimal)
 - style: Is the code readable, clean, idiomatic for the language? (0 = very messy, 100 = exemplary)
+
+Also provide an optional field timeComplexity (string) with the big-O notation, for example: "O(1)", "O(n)", "O(n log n)", "O(n^2)". If uncertain, return "O(?)".
 
 Output ONLY the JSON object below with no additional text, markdown, or explanation:
 START_JSON_RESPONSE
-{"exactitude": <0-100>, "complexity": <0-100>, "style": <0-100>, "notes": "<one sentence>"}
+{"exactitude": <0-100>, "complexity": <0-100>, "space": <0-100>, "timeComplexity": "O(n)", "style": <0-100>, "notes": "<one sentence>"}
 END_JSON_RESPONSE`;
   }
 
@@ -378,6 +400,6 @@ END_JSON_RESPONSE`;
   }
 
   private zeroScore(sol: SolutionInput, notes: string): ProblemScore {
-    return { problemId: sol.problemId, title: sol.title, difficulty: sol.difficulty, exactitude: 0, complexity: 0, style: 0, composite: 0, notes };
+    return { problemId: sol.problemId, title: sol.title, difficulty: sol.difficulty, exactitude: 0, complexity: 0, space: 0, timeComplexity: 'O(?)', complexite: 'O(?)', style: 0, composite: 0, notes };
   }
 }
