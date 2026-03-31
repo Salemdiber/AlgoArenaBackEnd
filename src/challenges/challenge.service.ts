@@ -27,4 +27,8 @@ export class ChallengeService {
     // Pour la démo, on retourne un mock
     return { output: 'Mock output', success: true };
     }
+
+    async incrementSolvedCount(id: string): Promise<void> {
+        await this.challengeModel.updateOne({ _id: id }, { $inc: { solvedCount: 1 } }).exec();
+    }
 }

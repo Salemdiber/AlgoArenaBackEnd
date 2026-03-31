@@ -20,6 +20,10 @@ import { CacheModule } from './cache/cache.module';
 import { PlaygroundModule } from './playground/playground.module';
 import { SubmissionsModule } from './submissions/submissions.module';
 
+import { JudgeModule } from './judge/judge.module';
+
+
+
 @Module({
   imports: [
     ConfigModule.forRoot({
@@ -39,7 +43,10 @@ import { SubmissionsModule } from './submissions/submissions.module';
     PlaygroundModule,
     AiModule,
     ChallengeModule,
+
     SubmissionsModule,
+
+    JudgeModule,
   ],
   controllers: [AppController],
   providers: [

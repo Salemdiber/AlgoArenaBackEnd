@@ -20,6 +20,13 @@ export class Challenge extends Document {
 
     @Prop({ type: String, enum: ['draft', 'published'], default: 'draft' })
     status: string;
+
+
+    @Prop()
+    createdBy: string;
+
+    @Prop({ type: String, default: '' })
+    referenceSolution: string;
 }
 
 export const ChallengeSchema = SchemaFactory.createForClass(Challenge);
