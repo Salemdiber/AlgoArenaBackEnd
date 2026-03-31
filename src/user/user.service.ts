@@ -187,6 +187,86 @@ export class UserService {
     return { previousXp, newXp, previousRank, newRank, rankChanged };
   }
 
+  async getChallengeProgress(userId: string): Promise<any[]> {
+    this.ensureValidObjectId(userId);
+    const user = await this.userModel.findById(userId).lean().exec() as any;
+    if (!user) throw new NotFoundException('User not found');
+    return Array.isArray(user.challengeProgress) ? user.challengeProgress : [];
+  }
+
+  async getChallengeProgressEntry(userId: string, challengeId: string): Promise<any | null> {
+    const progress = await this.getChallengeProgress(userId);
+    return progress.find((entry: any) => entry.challengeId === challengeId) || null;
+  }
+
+  async recordChallengeSubmission(
+    userId: string,
+    challengeId: string,
+    submission: any,
+    opts?: { xpReward?: number; solveTimeSeconds?: number | null },
+  ): Promise<{ progressEntry: any; xpGranted: number }> {
+    this.ensureValidObjectId(userId);
+    const user = await this.userModel.findById(userId).lean().exec() as any;
+    if (!user) throw new NotFoundException('User not found');
+
+    const challengeProgress = Array.isArray(user.challengeProgress) ? [...user.challengeProgress] : [];
+    const index = challengeProgress.findIndex((entry: any) => entry.challengeId === challengeId);
+    const existing = index >= 0 ? challengeProgress[index] : null;
+
+    const baseEntry = existing || {
+      challengeId,
+      status: 'UNSOLVED',
+      failedAttempts: 0,
+      solveTimeSeconds: null,
+      xpAwarded: 0,
+      solvedAt: null,
+      submissions: [],
+    };
+
+    const submissions = Array.isArray(baseEntry.submissions) ? [...baseEntry.submissions, submission] : [submission];
+    let nextStatus = baseEntry.status || 'UNSOLVED';
+    let failedAttempts = Number(baseEntry.failedAttempts || 0);
+    let solveTimeSeconds = baseEntry.solveTimeSeconds ?? null;
+    let xpAwarded = Number(baseEntry.xpAwarded || 0);
+    let solvedAt = baseEntry.solvedAt || null;
+    let xpGranted = 0;
+
+    if (submission.passed) {
+      if (nextStatus !== 'SOLVED') {
+        nextStatus = 'SOLVED';
+        solveTimeSeconds = opts?.solveTimeSeconds ?? null;
+        xpGranted = Number(opts?.xpReward || 0);
+        xpAwarded = xpGranted;
+        solvedAt = new Date();
+      }
+    } else if (nextStatus !== 'SOLVED') {
+      nextStatus = 'ATTEMPTED';
+      failedAttempts += 1;
+    }
+
+    const updatedEntry = {
+      ...baseEntry,
+      status: nextStatus,
+      failedAttempts,
+      solveTimeSeconds,
+      xpAwarded,
+      solvedAt,
+      submissions,
+      lastSubmittedAt: new Date(),
+    };
+
+    if (index >= 0) challengeProgress[index] = updatedEntry;
+    else challengeProgress.push(updatedEntry);
+
+    await this.userModel.findByIdAndUpdate(
+      userId,
+      { challengeProgress },
+      { new: false },
+    ).exec();
+
+    return { progressEntry: updatedEntry, xpGranted };
+  }
+
   async updateAvatar(userId: string, filename: string): Promise<{ message: string; avatarUrl: string }> {
     this.ensureValidObjectId(userId);
     const user = await this.userModel.findById(userId).lean().exec();
@@ -272,6 +352,57 @@ export class UserService {
   async setPlacementProblems(userId: string, problems: any[]) {
     this.ensureValidObjectId(userId);
     await this.userModel.findByIdAndUpdate(userId, { placementProblems: problems }, { new: true }).exec();
+  }
+
+  async completeSpeedChallenge(userId: string): Promise<void> {
+    this.ensureValidObjectId(userId);
+    await this.userModel.findByIdAndUpdate(userId, { speedChallengeCompleted: true }, { new: true }).exec();
+  }
+
+  async hasCompletedSpeedChallenge(userId: string): Promise<boolean> {
+    this.ensureValidObjectId(userId);
+    const user = await this.userModel.findById(userId).lean().exec();
+    return user ? (user as any).speedChallengeCompleted === true : false;
+  }
+
+  async saveSpeedTestSession(userId: string, sessionData: any): Promise<void> {
+    this.ensureValidObjectId(userId);
+    await this.userModel.findByIdAndUpdate(
+      userId,
+      {
+        speedTestSession: {
+          ...sessionData,
+          savedAt: new Date(),
+        },
+      },
+      { new: true }
+    ).exec();
+  }
+
+  async getSpeedTestSession(userId: string): Promise<any> {
+    this.ensureValidObjectId(userId);
+    const user = await this.userModel.findById(userId).lean().exec();
+    return user ? (user as any).speedTestSession : null;
+  }
+
+  async clearSpeedTestSession(userId: string): Promise<void> {
+    this.ensureValidObjectId(userId);
+    await this.userModel.findByIdAndUpdate(
+      userId,
+      {
+        speedTestSession: {
+          phase: null,
+          secondsLeft: null,
+          currentIndex: null,
+          solvedIds: [],
+          codes: {},
+          languages: {},
+          elapsedSeconds: null,
+          savedAt: null,
+        },
+      },
+      { new: true }
+    ).exec();
   }
 
   async changePassword(userId: string, dto: ChangePasswordDto): Promise<{ message: string }> {

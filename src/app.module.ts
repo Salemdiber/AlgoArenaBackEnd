@@ -18,6 +18,12 @@ import { MaintenanceGuard } from './settings/guards/maintenance.guard';
 import { ChallengesModule } from './challenges/challenges.module';
 import { CacheModule } from './cache/cache.module';
 import { BattlesModule } from './battles/battle.module';
+import { PlaygroundModule } from './playground/playground.module';
+import { SubmissionsModule } from './submissions/submissions.module';
+
+import { JudgeModule } from './judge/judge.module';
+
+
 
 @Module({
   imports: [
@@ -36,8 +42,13 @@ import { BattlesModule } from './battles/battle.module';
     ChallengesModule,
     BattlesModule,
     CacheModule,
+    PlaygroundModule,
     AiModule,
     ChallengeModule,
+
+    SubmissionsModule,
+
+    JudgeModule,
   ],
   controllers: [AppController],
   providers: [
@@ -48,4 +59,4 @@ import { BattlesModule } from './battles/battle.module';
     },
   ],
 })
-export class AppModule { }
+export class AppModule {}
