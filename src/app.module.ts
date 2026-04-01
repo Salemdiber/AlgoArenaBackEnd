@@ -17,7 +17,6 @@ import { ChallengeModule } from './challenges/challenge.module';
 import { MaintenanceGuard } from './settings/guards/maintenance.guard';
 import { ChallengesModule } from './challenges/challenges.module';
 import { CacheModule } from './cache/cache.module';
-import { BattlesModule } from './battles/battle.module';
 import { PlaygroundModule } from './playground/playground.module';
 import { SubmissionsModule } from './submissions/submissions.module';
 
@@ -40,7 +39,6 @@ import { JudgeModule } from './judge/judge.module';
     OnboardingModule,
     AuditLogModule,
     ChallengesModule,
-    BattlesModule,
     CacheModule,
     PlaygroundModule,
     AiModule,
