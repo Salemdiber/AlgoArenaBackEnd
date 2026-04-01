@@ -35,10 +35,6 @@ export class UpdateSettingsDto {
   disableTabSwitch?: boolean;
 
   @IsOptional()
-  @IsBoolean()
-  disableSpeedChallenges?: boolean;
-
-  @IsOptional()
   @IsNumber()
   @Min(1)
   apiRateLimit?: number;
