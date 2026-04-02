@@ -71,12 +71,13 @@ export class DockerExecutionService implements OnModuleInit {
   constructor(@InjectModel('SandboxMetric') private readonly sandboxMetricModel: Model<any>) {}
 
   async onModuleInit() {
-    try {
-      await this.docker.ping();
+    const available = await this.isDockerAvailable();
+    if (available) {
       this.logger.log('Successfully connected to Docker daemon.');
-    } catch (error: any) {
-      this.logger.error(`Failed to connect to Docker daemon: ${error?.message || 'Unknown error'}`);
+      return;
     }
+
+    this.logger.warn('Docker daemon is unavailable. Judge sandbox features will return a service-unavailable error until Docker Desktop is running.');
   }
 
   async executeCode(
@@ -86,6 +87,18 @@ export class DockerExecutionService implements OnModuleInit {
     context?: ExecutionContext,
   ): Promise<DockerExecutionResponse> {
     const startedAt = Date.now();
+    if (!(await this.isDockerAvailable())) {
+      return {
+        results: [],
+        executionTimeMs: Date.now() - startedAt,
+        error: {
+          type: 'ServiceUnavailable',
+          message: 'Docker sandbox execution is unavailable. Start Docker Desktop and try again.',
+          line: null,
+        },
+      };
+    }
+
     const functionName = detectFunctionName(userCode, language);
     const executionMode = this.determineExecutionMode(userCode, context);
     const expectedArity = this.detectFunctionArity(userCode, language, functionName || '');
@@ -173,10 +186,10 @@ export class DockerExecutionService implements OnModuleInit {
         },
       });
 
-      await container.start();
+      await container!.start();
       metricRecord.startedAt = new Date();
 
-      const sampling = this.startStatsSampler(container);
+      const sampling = this.startStatsSampler(container!);
       stopStatsSampler = sampling.stop;
       statsSamplerPromise = sampling.done;
 
@@ -190,7 +203,7 @@ export class DockerExecutionService implements OnModuleInit {
         }
       }, this.timeoutMs);
 
-      const waitResult = await container.wait();
+      const waitResult = await container!.wait();
       clearTimeout(timeoutHandle);
 
       if (stopStatsSampler) stopStatsSampler();
@@ -204,14 +217,14 @@ export class DockerExecutionService implements OnModuleInit {
         }
       }
 
-      const finalSnapshot = await this.collectContainerStatsSnapshot(container);
+      const finalSnapshot = await this.collectContainerStatsSnapshot(container!);
       metricRecord.peakCpuPercent = this.maxNullable(metricRecord.peakCpuPercent, finalSnapshot.cpuPercent);
       metricRecord.peakMemoryMb = this.maxNullable(metricRecord.peakMemoryMb, finalSnapshot.memoryMb);
       metricRecord.statsSamplesCount = Number(metricRecord.statsSamplesCount || 0) + (finalSnapshot.hadSample ? 1 : 0);
       snapshotMerged = true;
 
       try {
-        const inspect = await container.inspect();
+        const inspect = await container!.inspect();
         metricRecord.containerId = (inspect?.Id || '').slice(0, 12) || metricRecord.containerId;
         metricRecord.image = inspect?.Config?.Image || metricRecord.image;
         if (inspect?.State?.StartedAt) metricRecord.startedAt = new Date(inspect.State.StartedAt);
@@ -222,7 +235,7 @@ export class DockerExecutionService implements OnModuleInit {
         // Ignore inspect errors for rapidly exiting containers.
       }
 
-      const logs = (await container.logs({ stdout: true, stderr: true })) as unknown as Buffer;
+      const logs = (await container!.logs({ stdout: true, stderr: true })) as unknown as Buffer;
       const { stdout, stderr } = this.demultiplexLogs(logs);
 
       if (timedOut) {
@@ -1005,6 +1018,20 @@ print(json.dumps({"results": results}, default=str))
     memoryUsageBytes: number | null;
     memoryLimitBytes: number | null;
   }> {
+    if (!(await this.isDockerAvailable())) {
+      return {
+        status: 'idle',
+        state: 'unreachable',
+        containerId: null,
+        image: null,
+        uptimeMs: null,
+        runningSince: null,
+        cpuUsagePercent: null,
+        memoryUsageBytes: null,
+        memoryLimitBytes: null,
+      };
+    }
+
     try {
       const containers = await this.docker.listContainers({ all: true });
       const sandboxContainers = containers
@@ -1074,7 +1101,8 @@ print(json.dumps({"results": results}, default=str))
 
   async getSandboxStatus() {
     try {
-      const [latestMetricRaw, totalExecutions, successfulExecutions, recentMetricsRaw, peakAggRaw, live] = await Promise.all([
+      const live = await this.getLiveSandboxData();
+      const [latestMetricRaw, totalExecutions, successfulExecutions, recentMetricsRaw, peakAggRaw] = await Promise.all([
         this.sandboxMetricModel.findOne().sort({ createdAt: -1 }).lean().exec(),
         this.sandboxMetricModel.countDocuments().exec(),
         this.sandboxMetricModel.countDocuments({ status: 'success' }).exec(),
@@ -1091,7 +1119,6 @@ print(json.dumps({"results": results}, default=str))
             },
           ])
           .exec(),
-        this.getLiveSandboxData(),
       ]);
       const latestMetric: any = latestMetricRaw || null;
       const recentMetrics: any[] = Array.isArray(recentMetricsRaw) ? recentMetricsRaw : [];
@@ -1197,6 +1224,15 @@ print(json.dumps({"results": results}, default=str))
         hasData: false,
         lastUpdatedAt: now,
       };
+    }
+  }
+
+  private async isDockerAvailable(): Promise<boolean> {
+    try {
+      await this.docker.ping();
+      return true;
+    } catch {
+      return false;
     }
   }
 }
