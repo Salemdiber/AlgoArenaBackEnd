@@ -117,13 +117,9 @@ export class AIAnalysisService {
       });
       const raw = completion.choices[0].message.content;
       const parsed = JSON.parse(raw || '{}') as any;
-      const parsedTime = parsed?.timeComplexity;
-      const parsedSpace = parsed?.spaceComplexity;
-      const safeTime = !parsedTime || parsedTime === 'Unknown' ? fallback.timeComplexity : parsedTime;
-      const safeSpace = !parsedSpace || parsedSpace === 'Unknown' ? fallback.spaceComplexity : parsedSpace;
       return {
-        timeComplexity: safeTime,
-        spaceComplexity: safeSpace,
+        timeComplexity: parsed?.timeComplexity || fallback.timeComplexity,
+        spaceComplexity: parsed?.spaceComplexity || fallback.spaceComplexity,
         aiDetection: parsed?.aiDetection === 'AI_SUSPECTED' ? 'AI_SUSPECTED' : 'MANUAL',
         recommendations: Array.isArray(parsed?.recommendations) && parsed.recommendations.length
           ? parsed.recommendations.slice(0, 5).map((item: any) => String(item))

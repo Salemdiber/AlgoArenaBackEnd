@@ -3,7 +3,7 @@
     "module": "commonjs",
     "moduleResolution": "node",
     "resolvePackageJsonExports": false,
-    "types": ["node", "jest"],
+    "types": ["node"],
     "esModuleInterop": true,
     "isolatedModules": true,
     "declaration": true,
