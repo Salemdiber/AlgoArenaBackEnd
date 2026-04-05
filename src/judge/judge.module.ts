@@ -20,6 +20,6 @@ import { ChallengeAttemptController } from './challenge-attempt.controller';
   ],
   providers: [JudgeService, DockerExecutionService, AIAnalysisService],
   controllers: [JudgeController, SandboxAdminController, ChallengeAttemptController],
-  exports: [JudgeService, DockerExecutionService, AIAnalysisService],
+  exports: [JudgeService, DockerExecutionService],
 })
 export class JudgeModule {}
