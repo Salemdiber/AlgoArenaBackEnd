@@ -43,6 +43,7 @@ export const UserSchema = new Schema(
     lastLoginDate: { type: Date, default: null },
     streakUpdatedAt: { type: Date, default: null },
     loginActivityDates: { type: [String], default: [] },
+    speedChallengeCompleted: { type: Boolean, default: false },
     // Generated placement problems (stored at registration)
     placementProblems: { type: Array, default: [] },
     challengeProgress: {

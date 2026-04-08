@@ -6,12 +6,17 @@ import { AuthService } from '../auth.service';
 @Injectable()
 export class GoogleStrategy extends PassportStrategy(Strategy, 'google') {
   constructor(private readonly authService: AuthService) {
+    const proxy =
+      process.env.HTTPS_PROXY || process.env.HTTP_PROXY || undefined;
     super({
       clientID: process.env.GOOGLE_CLIENT_ID || 'dummy_client_id_google',
       clientSecret:
         process.env.GOOGLE_CLIENT_SECRET || 'dummy_client_secret_google',
-      callbackURL: 'http://localhost:3000/auth/google/callback',
+      callbackURL:
+        process.env.GOOGLE_CALLBACK_URL ||
+        'http://localhost:3000/auth/google/callback',
       scope: ['email', 'profile'],
+      proxy,
     });
   }
 

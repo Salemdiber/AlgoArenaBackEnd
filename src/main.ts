@@ -6,6 +6,7 @@ import cookieParser from 'cookie-parser';
 import { join } from 'path';
 import { SwaggerModule, DocumentBuilder } from '@nestjs/swagger';
 import { WsAdapter } from '@nestjs/platform-ws';
+import { setDefaultResultOrder } from 'node:dns';
 
 function swaggerDocsMessage(
   req: { headers?: Record<string, string | string[] | undefined> },
@@ -31,6 +32,10 @@ function swaggerDocsMessage(
 }
 
 async function bootstrap() {
+  // Some environments expose IPv6 DNS answers without IPv6 routing,
+  // which causes intermittent OAuth network errors. Prefer IPv4 first.
+  setDefaultResultOrder('ipv4first');
+
   const app = await NestFactory.create<NestExpressApplication>(AppModule);
   app.useWebSocketAdapter(new WsAdapter(app));
   const allowedOrigins = (process.env.CORS_ORIGIN ?? 'http://localhost:5173')

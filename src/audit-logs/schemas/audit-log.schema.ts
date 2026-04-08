@@ -15,6 +15,9 @@ export const AuditLogSchema = new Schema(
         'USER_DISABLED',
         'USER_REACTIVATED',
         'USER_ROLE_CHANGED',
+        'XP_UPDATED',
+        'RANK_PROMOTED',
+        'RANK_DEMOTED',
         'PASSWORD_RESET',
         // Admin events
         'ADMIN_ADDED',
@@ -28,6 +31,7 @@ export const AuditLogSchema = new Schema(
         'CHALLENGE_EDITED',
         'CHALLENGE_DELETED',
         'CHALLENGE_STARTED',
+        'CHALLENGE_ABANDONED',
         'CHALLENGE_SUBMITTED',
         'CHALLENGE_SOLVED',
         'DIFFICULTY_CHANGED',
