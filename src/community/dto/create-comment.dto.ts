@@ -1,4 +1,4 @@
-import { IsNotEmpty, IsString, MaxLength, IsOptional, IsIn } from 'class-validator';
+import { IsNotEmpty, IsString, MaxLength, IsOptional } from 'class-validator';
 
 export class CreateCommentDto {
   @IsString()
@@ -8,6 +8,15 @@ export class CreateCommentDto {
 
   @IsString()
   @IsOptional()
-  @IsIn(['discussion', 'strategy'])
-  type?: string = 'discussion';
+  @MaxLength(500)
+  imageUrl?: string;
+
+  @IsString()
+  @IsOptional()
+  @MaxLength(500)
+  videoUrl?: string;
+
+  @IsString()
+  @IsOptional()
+  parentCommentId?: string;
 }

@@ -7,6 +7,16 @@ export class EmailService {
   private transporter: nodemailer.Transporter;
   private readonly logger = new Logger(EmailService.name);
 
+  private getErrorMessage(err: unknown): string {
+    if (err instanceof Error) return err.message;
+    return String(err);
+  }
+
+  private getErrorStack(err: unknown): string {
+    if (err instanceof Error && err.stack) return err.stack;
+    return String(err);
+  }
+
   constructor() {
     this.fromAddress = process.env.SMTP_FROM || 'sa7bi200@gmail.com';
 
@@ -31,8 +41,8 @@ export class EmailService {
       });
       this.logger.log(`Email sent to ${to}; messageId=${info.messageId}`);
       return info;
-    } catch (err) {
-      this.logger.error(`Error sending email to ${to}: ${err?.message || err}`);
+    } catch (err: unknown) {
+      this.logger.error(`Error sending email to ${to}: ${this.getErrorMessage(err)}`);
       throw err;
     }
   }
@@ -83,9 +93,9 @@ export class EmailService {
 
         try {
           await this.sendEmail(email, 'Reset Your Password - AlgoArena', htmlTemplate);
-        } catch (err) {
-          this.logger.error(`Error sending reset email to ${email}: ${err?.message || err}`);
-          this.logger.error(err?.stack || String(err));
+        } catch (err: unknown) {
+          this.logger.error(`Error sending reset email to ${email}: ${this.getErrorMessage(err)}`);
+          this.logger.error(this.getErrorStack(err));
           throw err;
         }
     }
@@ -95,9 +105,9 @@ export class EmailService {
         try {
           await this.sendEmail(email, 'Your AlgoArena verification code', html);
           this.logger.log(`2FA email request accepted for ${email}`);
-        } catch (err) {
-          this.logger.error(`Error sending 2FA email to ${email}: ${err?.message || err}`);
-          this.logger.error(err?.stack || String(err));
+        } catch (err: unknown) {
+          this.logger.error(`Error sending 2FA email to ${email}: ${this.getErrorMessage(err)}`);
+          this.logger.error(this.getErrorStack(err));
           throw err;
         }
       }

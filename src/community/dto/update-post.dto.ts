@@ -1,4 +1,4 @@
-import { IsNotEmpty, IsOptional, IsString, MaxLength } from 'class-validator';
+import { IsArray, IsBoolean, IsIn, IsNotEmpty, IsOptional, IsString, MaxLength } from 'class-validator';
 
 export class UpdatePostDto {
   @IsString()
@@ -12,4 +12,22 @@ export class UpdatePostDto {
   @IsNotEmpty()
   @MaxLength(5000)
   content?: string;
+
+  @IsArray()
+  @IsOptional()
+  @IsString({ each: true })
+  tags?: string[];
+
+  @IsString()
+  @IsOptional()
+  @IsIn(['bug', 'algorithm', 'help', 'optimization'])
+  problemType?: string;
+
+  @IsBoolean()
+  @IsOptional()
+  solved?: boolean;
+
+  @IsBoolean()
+  @IsOptional()
+  pinned?: boolean;
 }

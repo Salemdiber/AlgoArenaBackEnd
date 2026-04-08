@@ -1,4 +1,4 @@
-import { IsNotEmpty, IsOptional, IsString, MaxLength } from 'class-validator';
+import { IsBoolean, IsNotEmpty, IsOptional, IsString, MaxLength } from 'class-validator';
 
 export class UpdateCommentDto {
   @IsString()
@@ -6,4 +6,8 @@ export class UpdateCommentDto {
   @IsNotEmpty()
   @MaxLength(1500)
   text?: string;
+
+  @IsBoolean()
+  @IsOptional()
+  pinned?: boolean;
 }

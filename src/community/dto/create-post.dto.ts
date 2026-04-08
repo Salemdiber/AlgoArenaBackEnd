@@ -1,4 +1,4 @@
-import { IsNotEmpty, IsString, MaxLength, IsOptional, IsIn } from 'class-validator';
+import { IsNotEmpty, IsString, MaxLength, IsOptional, IsIn, IsArray } from 'class-validator';
 
 export class CreatePostDto {
   @IsString()
@@ -23,4 +23,14 @@ export class CreatePostDto {
   @IsOptional()
   @IsIn(['discussion', 'strategy', 'normal', 'problem'])
   type?: string = 'normal';
+
+  @IsArray()
+  @IsOptional()
+  @IsString({ each: true })
+  tags?: string[];
+
+  @IsString()
+  @IsOptional()
+  @IsIn(['bug', 'algorithm', 'help', 'optimization'])
+  problemType?: string;
 }

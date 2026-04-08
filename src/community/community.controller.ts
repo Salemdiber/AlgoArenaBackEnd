@@ -2,6 +2,7 @@ import {
   BadRequestException,
   Body,
   Controller,
+  Delete,
   Get,
   Patch,
   Param,
@@ -87,7 +88,7 @@ export class CommunityController {
   @Post('posts')
   async createPost(
     @Body() dto: CreatePostDto,
-    @CurrentUser() user: { userId: string; username: string },
+    @CurrentUser() user: { userId: string; username: string; avatar?: string; role?: string },
   ) {
     return this.communityService.createPost(dto, user);
   }
@@ -97,7 +98,7 @@ export class CommunityController {
   async addComment(
     @Param('postId') postId: string,
     @Body() dto: CreateCommentDto,
-    @CurrentUser() user: { userId: string; username: string },
+    @CurrentUser() user: { userId: string; username: string; avatar?: string; role?: string },
   ) {
     return this.communityService.addComment(postId, dto, user);
   }
@@ -107,7 +108,7 @@ export class CommunityController {
   async updatePost(
     @Param('postId') postId: string,
     @Body() dto: UpdatePostDto,
-    @CurrentUser() user: { userId: string; username: string },
+    @CurrentUser() user: { userId: string; username: string; role?: string },
   ) {
     return this.communityService.updatePost(postId, dto, user);
   }
@@ -118,8 +119,58 @@ export class CommunityController {
     @Param('postId') postId: string,
     @Param('commentId') commentId: string,
     @Body() dto: UpdateCommentDto,
-    @CurrentUser() user: { userId: string; username: string },
+    @CurrentUser() user: { userId: string; username: string; role?: string },
   ) {
     return this.communityService.updateComment(postId, commentId, dto, user);
+  }
+
+  @UseGuards(JwtAuthGuard)
+  @Delete('posts/:postId')
+  async deletePost(
+    @Param('postId') postId: string,
+    @CurrentUser() user: { userId: string; role?: string },
+  ) {
+    return this.communityService.deletePost(postId, user);
+  }
+
+  @UseGuards(JwtAuthGuard)
+  @Delete('posts/:postId/comments/:commentId')
+  async deleteComment(
+    @Param('postId') postId: string,
+    @Param('commentId') commentId: string,
+    @CurrentUser() user: { userId: string; role?: string },
+  ) {
+    return this.communityService.deleteComment(postId, commentId, user);
+  }
+
+  @UseGuards(JwtAuthGuard)
+  @Patch('posts/:postId/solve')
+  async toggleSolved(
+    @Param('postId') postId: string,
+    @Body() dto: { solved?: boolean },
+    @CurrentUser() user: { userId: string; username: string; role?: string },
+  ) {
+    return this.communityService.updatePost(postId, { solved: Boolean(dto?.solved) }, user);
+  }
+
+  @UseGuards(JwtAuthGuard)
+  @Patch('posts/:postId/pin')
+  async togglePostPin(
+    @Param('postId') postId: string,
+    @Body() dto: { pinned?: boolean },
+    @CurrentUser() user: { userId: string; username: string; role?: string },
+  ) {
+    return this.communityService.updatePost(postId, { pinned: Boolean(dto?.pinned) }, user);
+  }
+
+  @UseGuards(JwtAuthGuard)
+  @Patch('posts/:postId/comments/:commentId/pin')
+  async toggleCommentPin(
+    @Param('postId') postId: string,
+    @Param('commentId') commentId: string,
+    @Body() dto: { pinned?: boolean },
+    @CurrentUser() user: { userId: string; username: string; role?: string },
+  ) {
+    return this.communityService.updateComment(postId, commentId, { pinned: Boolean(dto?.pinned) }, user);
   }
 }

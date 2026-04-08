@@ -165,7 +165,6 @@ export class UserController {
 	@Get(':id')
 	async findOne(@Param('id') id: string) {
 		this.safeDebugLog({ hit: ':id', id });
-		require('fs').appendFileSync('d:/4TWIN/Pi-JS/Next_Gen_Back/AlgoArenaBackEnd/debug_nest.log', JSON.stringify({ hit: ':id', id }) + '\n');
 		return await this.userService.findOne(id);
 	}
 
