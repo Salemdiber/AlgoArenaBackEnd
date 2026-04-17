@@ -24,6 +24,7 @@ import { BattlesModule } from './battles/battle.module';
 import { JudgeModule } from './judge/judge.module';
 import { ChatModule } from './chat/chat.module';
 import { SupportModule } from './support/support.module';
+import { CommunityModule } from './community/community.module';
 
 @Module({
   imports: [
@@ -39,7 +40,19 @@ import { SupportModule } from './support/support.module';
       },
       resolvers: [AcceptLanguageResolver],
     }),
-    MongooseModule.forRoot(process.env.MONGO_URI || 'mongodb://localhost:27017/algoarena'),
+    MongooseModule.forRoot(
+      process.env.MONGO_URI || 'mongodb://localhost:27017/algoarena',
+      {
+        maxPoolSize: 10,
+        minPoolSize: 2,
+        socketTimeoutMS: 45000,
+        serverSelectionTimeoutMS: 5000,
+        connectionFactory: (connection) => {
+          connection.set('bufferCommands', false);
+          return connection;
+        },
+      },
+    ),
     UserModule,
     AuthModule,
     SystemHealthModule,
@@ -56,6 +69,7 @@ import { SupportModule } from './support/support.module';
     JudgeModule,
     ChatModule,
     SupportModule,
+    CommunityModule,
   ],
   controllers: [AppController],
   providers: [

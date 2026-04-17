@@ -16,7 +16,7 @@ export class BattlesService {
 
   private tr(key: string, args?: Record<string, unknown>): string {
     const lang = I18nContext.current()?.lang ?? 'en';
-    return this.i18n.translate(key, { lang, args }) as string;
+    return this.i18n.translate(key, { lang, args });
   }
 
   private async generateIdBattle(): Promise<string> {
@@ -44,23 +44,48 @@ export class BattlesService {
     return created.save();
   }
 
-  async findAll(): Promise<Battle[]> {
-    return this.model.find().exec();
+  async findAll(query?: {
+    page?: number;
+    limit?: number;
+  }): Promise<{ battles: Battle[]; total: number; page: number; limit: number; pages: number }> {
+    const page = Math.max(1, Number(query?.page) || 1);
+    const limit = Math.min(20, Math.max(1, Number(query?.limit) || 20));
+    const skip = (page - 1) * limit;
+
+    const [battles, total] = await Promise.all([
+      this.model
+        .find()
+        .sort({ createdAt: -1 })
+        .skip(skip)
+        .limit(limit)
+        .lean()
+        .exec(),
+      this.model.countDocuments().exec(),
+    ]);
+
+    return { battles, total, page, limit, pages: Math.ceil(total / limit) };
   }
 
   async findByUserId(userId: string): Promise<Battle[]> {
-    return this.model.find({ userId }).exec();
+    return this.model
+      .find({ userId })
+      .sort({ createdAt: -1 })
+      .limit(20)
+      .lean()
+      .exec();
   }
 
   async findOne(id: string): Promise<Battle> {
-    const found = await this.model.findById(id).exec();
-    if (!found) throw new NotFoundException(this.tr('battles.notFoundById', { id }));
+    const found = await this.model.findById(id).lean().exec();
+    if (!found)
+      throw new NotFoundException(this.tr('battles.notFoundById', { id }));
     return found;
   }
 
   async update(id: string, dto: UpdateBattleDto): Promise<Battle> {
-    const existing = await this.model.findById(id).exec();
-    if (!existing) throw new NotFoundException(this.tr('battles.notFoundById', { id }));
+    const existing = await this.model.findById(id).lean().exec();
+    if (!existing)
+      throw new NotFoundException(this.tr('battles.notFoundById', { id }));
 
     const nextStatus = dto.battleStatus || existing.battleStatus;
     const updatePayload: any = { ...dto };
@@ -69,13 +94,18 @@ export class BattlesService {
       updatePayload.winnerUserId = null;
     }
 
-    const updated = await this.model.findByIdAndUpdate(id, updatePayload, { new: true }).exec();
-    if (!updated) throw new NotFoundException(this.tr('battles.notFoundById', { id }));
+    const updated = await this.model
+      .findByIdAndUpdate(id, updatePayload, { new: true })
+      .lean()
+      .exec();
+    if (!updated)
+      throw new NotFoundException(this.tr('battles.notFoundById', { id }));
     return updated;
   }
 
   async remove(id: string): Promise<void> {
     const deleted = await this.model.findByIdAndDelete(id).exec();
-    if (!deleted) throw new NotFoundException(this.tr('battles.notFoundById', { id }));
+    if (!deleted)
+      throw new NotFoundException(this.tr('battles.notFoundById', { id }));
   }
 }
