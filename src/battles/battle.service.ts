@@ -69,6 +69,7 @@ export class BattlesService {
   async findByUserId(userId: string): Promise<Battle[]> {
     return this.model
       .find({ userId })
+      .select('_id idBattle battleStatus battleType roundNumber challengeId opponentId botDifficulty selectChallengeType userId createdAt endedAt winnerUserId')
       .sort({ createdAt: -1 })
       .limit(20)
       .lean()
