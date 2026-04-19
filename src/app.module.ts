@@ -30,6 +30,13 @@ import { CommunityModule } from './community/community.module';
   imports: [
     ConfigModule.forRoot({
       isGlobal: true,
+      envFilePath: [
+        path.resolve(__dirname, '../.env.local'),
+        path.resolve(__dirname, '../.env'),
+        '.env.local',
+        '.env',
+      ],
+      expandVariables: true,
     }),
     I18nModule.forRoot({
       fallbackLanguage: 'en',
