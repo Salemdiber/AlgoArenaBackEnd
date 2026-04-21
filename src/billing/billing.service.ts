@@ -11,6 +11,8 @@ type CheckoutSessionLike = {
   payment_status?: string;
 };
 
+const normalizeFrontendUrl = (value?: string | null) => (value || 'http://localhost:5173').replace(/\/+$/, '');
+
 @Injectable()
 export class BillingService {
   private readonly stripe: Stripe.Stripe | null;
@@ -23,37 +25,69 @@ export class BillingService {
     this.stripe = secretKey ? new Stripe(secretKey) : null;
   }
 
-  createHintCheckoutSession = async (userId: string) => {
+  createHintCheckoutSession = async (userId: string, amount = 1) => {
     if (!this.stripe) throw new BadRequestException('Stripe is not configured');
 
     const user = await this.users.findOne(userId).catch(() => null) as any;
     if (!user) throw new NotFoundException('User not found');
 
-    const frontendUrl = this.configService.get<string>('FRONTEND_URL') || 'http://localhost:5173';
+    const credits = Math.max(1, Number(amount) || 1);
+    const unitAmount = 199;
+    const totalAmount = unitAmount * credits;
+
+    const frontendUrl = normalizeFrontendUrl(this.configService.get<string>('FRONTEND_URL'));
     const session = await this.stripe.checkout.sessions.create({
       mode: 'payment',
-      success_url: `${frontendUrl}/speed-challenge?hint_purchase=success`,
-      cancel_url: `${frontendUrl}/speed-challenge?hint_purchase=cancel`,
+      success_url: `${frontendUrl}/profile/billing?hint_purchase=success&session_id={CHECKOUT_SESSION_ID}`,
+      cancel_url: `${frontendUrl}/profile/billing?hint_purchase=cancel`,
       line_items: [
         {
-          quantity: 1,
+          quantity: credits,
           price_data: {
             currency: 'usd',
-            unit_amount: 199,
+            unit_amount: unitAmount,
             product_data: {
-              name: 'AlgoArena Hint Credit',
-              description: 'Unlock one additional hint credit',
+              name: 'AlgoArena Hint Credits',
+              description: `Unlock ${credits} additional hint credit${credits > 1 ? 's' : ''}`,
             },
           },
         },
       ],
       metadata: {
         userId,
-        credits: '1',
+        credits: String(credits),
+        unitAmount: String(unitAmount),
+        totalAmount: String(totalAmount),
       },
     });
 
-    return { url: session.url };
+    return { url: session.url, unitAmount, totalAmount, credits };
+  };
+
+  confirmStripeSession = async (sessionId: string) => {
+    if (!this.stripe) throw new BadRequestException('Stripe is not configured');
+    const safeSessionId = String(sessionId || '').trim();
+    if (!safeSessionId) throw new BadRequestException('Session id is required');
+
+    const session = await this.stripe.checkout.sessions.retrieve(safeSessionId);
+    if (session.payment_status !== 'paid') {
+      return { fulfilled: false, paymentStatus: session.payment_status ?? 'unpaid' };
+    }
+
+    const userId = String(session.metadata?.userId || '');
+    if (!userId) {
+      throw new BadRequestException('Missing session user');
+    }
+
+    const credits = Number(session.metadata?.credits || 1);
+    const result = await this.users.addHintCredits(userId, credits, {
+      stripeSessionId: session.id,
+      amountTotal: session.amount_total ?? 0,
+      currency: session.currency ?? 'usd',
+      status: session.payment_status === 'paid' ? 'paid' : 'pending',
+    });
+
+    return { fulfilled: true, paymentStatus: session.payment_status, hintCredits: result.hintCredits };
   };
 
   fulfillStripeSession = async (session: CheckoutSessionLike) => {
