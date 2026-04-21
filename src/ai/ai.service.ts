@@ -31,7 +31,7 @@ export class AiService {
     const apiKey = this.config.get<string>('GROQ_API_KEY');
     if (!apiKey) {
       this.logger.warn(
-        'GROQ_API_KEY is not set; AI challenge generation is disabled',
+        'GROQ_API_KEY is not set in environment variables. AI challenge generation is disabled.',
       );
       this.groq = null;
       return;

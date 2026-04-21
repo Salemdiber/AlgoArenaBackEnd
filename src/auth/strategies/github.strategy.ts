@@ -1,20 +1,24 @@
+import 'dotenv/config';
 import { PassportStrategy } from '@nestjs/passport';
 import { Strategy } from 'passport-github2';
-import { Injectable } from '@nestjs/common';
+import { Injectable, Logger } from '@nestjs/common';
 import { AuthService } from '../auth.service';
 
 @Injectable()
 export class GithubStrategy extends PassportStrategy(Strategy, 'github') {
   constructor(private readonly authService: AuthService) {
+    const logger = new Logger(GithubStrategy.name);
     const backendBaseUrl = process.env.BACKEND_URL || 'http://localhost:3000';
     const clientID = process.env.GITHUB_CLIENT_ID;
     const clientSecret = process.env.GITHUB_CLIENT_SECRET;
     if (!clientID || !clientSecret) {
-      throw new Error('GITHUB_CLIENT_ID and GITHUB_CLIENT_SECRET are required');
+      logger.error(
+        'GitHub OAuth credentials are missing (GITHUB_CLIENT_ID / GITHUB_CLIENT_SECRET).',
+      );
     }
     super({
-      clientID,
-      clientSecret,
+      clientID: clientID || '',
+      clientSecret: clientSecret || '',
       callbackURL:
         process.env.GITHUB_CALLBACK_URL ||
         `${backendBaseUrl}/auth/github/callback`,
