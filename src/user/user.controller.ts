@@ -112,7 +112,8 @@ export class UserController {
         JSON.stringify(obj) + '\n',
       );
     } catch (e) {
-      console.error('Failed to write debug_nest.log', e?.message || e);
+      const error = e as { message?: string };
+      console.error('Failed to write debug_nest.log', error?.message || e);
     }
   }
 
@@ -365,6 +366,25 @@ Audit logs are created for every call:
   async completeSpeedChallenge(@CurrentUser() user: { userId: string }) {
     await this.userService.completeSpeedChallenge(user.userId);
     return { message: this.tr('user.speedChallengeCompleted') };
+  }
+
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Get hint credit balance' })
+  @ApiResponse({ status: 200, description: 'Hint credit balance returned' })
+  @Get('me/hints/balance')
+  async getHintBalance(@CurrentUser() user: { userId: string }) {
+    return this.userService.getHintBalance(user.userId);
+  }
+
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Consume one hint credit' })
+  @ApiResponse({ status: 200, description: 'Hint credit consumed' })
+  @Post('me/hints/consume')
+  @HttpCode(HttpStatus.OK)
+  async consumeHintCredit(@CurrentUser() user: { userId: string }) {
+    return this.userService.consumeHintCredit(user.userId);
   }
 
   @UseGuards(JwtAuthGuard)

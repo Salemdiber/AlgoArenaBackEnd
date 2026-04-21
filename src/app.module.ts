@@ -25,6 +25,7 @@ import { JudgeModule } from './judge/judge.module';
 import { ChatModule } from './chat/chat.module';
 import { SupportModule } from './support/support.module';
 import { CommunityModule } from './community/community.module';
+import { BillingModule } from './billing/billing.module';
 
 @Module({
   imports: [
@@ -60,6 +61,7 @@ import { CommunityModule } from './community/community.module';
     ChatModule,
     SupportModule,
     CommunityModule,
+    BillingModule,
   ],
   controllers: [AppController],
   providers: [
