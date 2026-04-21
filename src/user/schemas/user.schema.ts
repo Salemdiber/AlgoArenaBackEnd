@@ -17,6 +17,25 @@ export const UserSchema = new Schema(
     resetPasswordCode: { type: String, default: null },
     resetPasswordCodeVerified: { type: Boolean, default: false },
 
+    // ── Hint Wallet / Billing ─────────────────────────────────────
+    hintCredits: { type: Number, default: 1 },
+    totalHintsUsed: { type: Number, default: 0 },
+    hintPurchases: {
+      type: [
+        {
+          provider: { type: String, default: 'stripe' },
+          stripeSessionId: { type: String, default: null },
+          creditsPurchased: { type: Number, default: 0 },
+          amountTotal: { type: Number, default: 0 },
+          currency: { type: String, default: 'usd' },
+          status: { type: String, default: 'pending' },
+          createdAt: { type: Date, default: Date.now },
+          fulfilledAt: { type: Date, default: null },
+        },
+      ],
+      default: [],
+    },
+
     // ── Speed Challenge Placement ──────────────────────────────────
     rank: {
       type: String,
