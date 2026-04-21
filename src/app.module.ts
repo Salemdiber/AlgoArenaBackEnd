@@ -26,6 +26,8 @@ import { JudgeModule } from './judge/judge.module';
 import { ChatModule } from './chat/chat.module';
 import { SupportModule } from './support/support.module';
 import { CommunityModule } from './community/community.module';
+import { AiAgentsModule } from './ai-agents/ai-agents.module';
+import { BillingModule } from './billing/billing.module';
 
 const i18nPath = (() => {
   const distPath = path.join(__dirname, 'i18n');
@@ -74,6 +76,8 @@ const i18nPath = (() => {
     ChatModule,
     SupportModule,
     CommunityModule,
+    AiAgentsModule,
+    BillingModule,
   ],
   controllers: [AppController],
   providers: [

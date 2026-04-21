@@ -320,6 +320,8 @@ export class UserService {
       xpNeededForNextRank: rankStats.xpNeededForNextRank,
       progressPercent: rankStats.progressPercent,
       isMaxRank: rankStats.isMaxRank,
+      hintCredits: Number((user as any).hintCredits ?? 1),
+      totalHintsUsed: Number((user as any).totalHintsUsed ?? 0),
     };
   }
 
@@ -1223,6 +1225,91 @@ export class UserService {
     return rest;
   }
 
+  async getHintBalance(userId: string): Promise<{ hintCredits: number; totalHintsUsed: number }> {
+    this.ensureValidObjectId(userId);
+    const user = await this.userModel.findById(userId).lean().exec() as any;
+    if (!user) throw new NotFoundException('User not found');
+
+    return {
+      hintCredits: Number(user.hintCredits ?? 1),
+      totalHintsUsed: Number(user.totalHintsUsed ?? 0),
+    };
+  }
+
+  async consumeHintCredit(userId: string): Promise<{ hintCredits: number; totalHintsUsed: number }> {
+    this.ensureValidObjectId(userId);
+    const user = await this.userModel.findById(userId).lean().exec() as any;
+    if (!user) throw new NotFoundException('User not found');
+
+    const currentCredits = Number(user.hintCredits ?? 1);
+    if (currentCredits <= 0) {
+      throw new BadRequestException('Hint credits required');
+    }
+
+    const updated = await this.userModel.findByIdAndUpdate(
+      userId,
+      {
+        $inc: {
+          hintCredits: -1,
+          totalHintsUsed: 1,
+        },
+      },
+      { new: true },
+    ).lean().exec() as any;
+
+    return {
+      hintCredits: Number(updated?.hintCredits ?? 0),
+      totalHintsUsed: Number(updated?.totalHintsUsed ?? 0),
+    };
+  }
+
+  async addHintCredits(
+    userId: string,
+    credits: number,
+    purchase: {
+      stripeSessionId?: string | null;
+      amountTotal?: number;
+      currency?: string;
+      status?: string;
+    } = {},
+  ): Promise<{ hintCredits: number }> {
+    this.ensureValidObjectId(userId);
+    const safeCredits = Math.max(1, Math.floor(Number(credits) || 0));
+
+    if (purchase.stripeSessionId) {
+      const existingPurchase = await this.userModel
+        .findOne({ _id: userId, 'hintPurchases.stripeSessionId': purchase.stripeSessionId })
+        .lean()
+        .exec() as any;
+
+      if (existingPurchase) {
+        return { hintCredits: Number(existingPurchase.hintCredits ?? 0) };
+      }
+    }
+
+    const updated = await this.userModel.findByIdAndUpdate(
+      userId,
+      {
+        $inc: { hintCredits: safeCredits },
+        $push: {
+          hintPurchases: {
+            provider: 'stripe',
+            stripeSessionId: purchase.stripeSessionId ?? null,
+            creditsPurchased: safeCredits,
+            amountTotal: Number(purchase.amountTotal ?? 0),
+            currency: String(purchase.currency ?? 'usd'),
+            status: purchase.status ?? 'pending',
+            createdAt: new Date(),
+            fulfilledAt: purchase.status === 'paid' ? new Date() : null,
+          },
+        },
+      },
+      { new: true },
+    ).lean().exec() as any;
+
+    return { hintCredits: Number(updated?.hintCredits ?? safeCredits) };
+  }
+
   async setPlacementProblems(userId: string, problems: any[]) {
     this.ensureValidObjectId(userId);
     await this.userModel
@@ -1364,6 +1451,30 @@ export class UserService {
 
   async findByEmail(email: string) {
     return this.userModel.findOne({ email }).sort({ createdAt: -1 }).exec();
+  }
+
+  async findByGoogleId(googleId: string) {
+    return this.userModel.findOne({ googleId }).exec();
+  }
+
+  async findByGithubId(githubId: string) {
+    return this.userModel.findOne({ githubId }).exec();
+  }
+
+  async linkOAuthProvider(
+    userId: string,
+    provider: 'google' | 'github',
+    providerId: string,
+    profile?: { avatar?: string | null; username?: string | null },
+  ) {
+    this.ensureValidObjectId(userId);
+    const update: any = {};
+    if (provider === 'google') update.googleId = providerId;
+    if (provider === 'github') update.githubId = providerId;
+    if (profile?.avatar) update.avatar = profile.avatar;
+    if (profile?.username) update.username = profile.username;
+
+    return this.userModel.findByIdAndUpdate(userId, update, { new: true }).exec();
   }
 
   async findByUsername(username: string) {

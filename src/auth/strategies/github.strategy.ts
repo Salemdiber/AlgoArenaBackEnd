@@ -6,26 +6,22 @@ import { AuthService } from '../auth.service';
 
 @Injectable()
 export class GithubStrategy extends PassportStrategy(Strategy, 'github') {
-  constructor(
-    private readonly authService: AuthService,
-  ) {
+  constructor(private readonly authService: AuthService) {
     const logger = new Logger(GithubStrategy.name);
+    const backendBaseUrl = process.env.BACKEND_URL || 'http://localhost:3000';
     const clientID = process.env.GITHUB_CLIENT_ID;
     const clientSecret = process.env.GITHUB_CLIENT_SECRET;
-    const callbackURL =
-      process.env.GITHUB_CALLBACK_URL ||
-      'http://localhost:3000/auth/github/callback';
-
     if (!clientID || !clientSecret) {
       logger.error(
         'GitHub OAuth credentials are missing (GITHUB_CLIENT_ID / GITHUB_CLIENT_SECRET).',
       );
     }
-
     super({
       clientID: clientID || '',
       clientSecret: clientSecret || '',
-      callbackURL,
+      callbackURL:
+        process.env.GITHUB_CALLBACK_URL ||
+        `${backendBaseUrl}/auth/github/callback`,
       scope: ['user:email'],
     });
   }

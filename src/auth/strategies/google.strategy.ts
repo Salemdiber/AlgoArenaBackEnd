@@ -6,27 +6,24 @@ import { AuthService } from '../auth.service';
 
 @Injectable()
 export class GoogleStrategy extends PassportStrategy(Strategy, 'google') {
-  constructor(
-    private readonly authService: AuthService,
-  ) {
+  constructor(private readonly authService: AuthService) {
     const logger = new Logger(GoogleStrategy.name);
-    const proxy = process.env.HTTPS_PROXY || process.env.HTTP_PROXY || undefined;
+    const proxy =
+      process.env.HTTPS_PROXY || process.env.HTTP_PROXY || undefined;
+    const backendBaseUrl = process.env.BACKEND_URL || 'http://localhost:3000';
     const clientID = process.env.GOOGLE_CLIENT_ID;
     const clientSecret = process.env.GOOGLE_CLIENT_SECRET;
-    const callbackURL =
-      process.env.GOOGLE_CALLBACK_URL ||
-      'http://localhost:3000/auth/google/callback';
-
     if (!clientID || !clientSecret) {
       logger.error(
         'Google OAuth credentials are missing (GOOGLE_CLIENT_ID / GOOGLE_CLIENT_SECRET).',
       );
     }
-
     super({
       clientID: clientID || '',
       clientSecret: clientSecret || '',
-      callbackURL,
+      callbackURL:
+        process.env.GOOGLE_CALLBACK_URL ||
+        `${backendBaseUrl}/auth/google/callback`,
       scope: ['email', 'profile'],
       proxy,
     });

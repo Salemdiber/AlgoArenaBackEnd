@@ -7,6 +7,8 @@ import * as nodemailer from 'nodemailer';
 import { resetPasswordEmailTemplate } from './templates/reset-password-email.template';
 import { welcomeEmailTemplate } from './templates/welcome-email.template';
 
+const normalizeFrontendUrl = (value?: string | null) => (value || 'http://localhost:5173').replace(/\/+$/, '');
+
 @Injectable()
 export class EmailService {
   private readonly logger = new Logger(EmailService.name);
@@ -107,7 +109,7 @@ export class EmailService {
   async sendWelcomeEmail(email: string, username: string) {
     const platformName = process.env.PLATFORM_NAME || 'AlgoArena';
     const logoUrl = process.env.PLATFORM_LOGO_URL;
-    const appUrl = process.env.FRONTEND_URL || 'http://localhost:5173';
+    const appUrl = normalizeFrontendUrl(process.env.FRONTEND_URL);
 
     const htmlTemplate = welcomeEmailTemplate(
       platformName,
