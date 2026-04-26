@@ -48,7 +48,7 @@ pipeline {
         script {
           def scannerHome = tool 'SonarScanner'
           withSonarQubeEnv('SonarQube') {
-            sh "${scannerHome}/bin/sonar-scanner -Dsonar.projectKey=${SONAR_PROJECT_KEY} -Dsonar.projectName=${SONAR_PROJECT_NAME} -Dsonar.sources=src -Dsonar.tests=src,test -Dsonar.test.inclusions=src/**/*.spec.ts,test/**/*.e2e-spec.ts -Dsonar.javascript.lcov.reportPaths=coverage/lcov.info"
+            sh "${scannerHome}/bin/sonar-scanner -Dsonar.projectKey=${SONAR_PROJECT_KEY} -Dsonar.projectName=\"${SONAR_PROJECT_NAME}\" -Dsonar.sources=src -Dsonar.tests=src,test -Dsonar.test.inclusions=src/**/*.spec.ts,test/**/*.e2e-spec.ts -Dsonar.javascript.lcov.reportPaths=coverage/lcov.info"
           }
         }
       }
