@@ -16,6 +16,21 @@ export const UserSchema = new Schema(
     resetPasswordExpires: { type: Date, default: null },
     resetPasswordCode: { type: String, default: null },
     resetPasswordCodeVerified: { type: Boolean, default: false },
+    accessibilitySettings: {
+      type: {
+        highContrast: { type: Boolean, default: false },
+        reducedMotion: { type: Boolean, default: false },
+        dyslexiaFont: { type: Boolean, default: false },
+        fontScale: {
+          type: String,
+          enum: ['small', 'medium', 'large'],
+          default: 'medium',
+        },
+        voiceMode: { type: Boolean, default: false },
+        voiceCommandsEnabled: { type: Boolean, default: false },
+      },
+      default: {},
+    },
 
     // ── Hint Wallet / Billing ─────────────────────────────────────
     hintCredits: { type: Number, default: 1 },
@@ -63,14 +78,6 @@ export const UserSchema = new Schema(
     streakUpdatedAt: { type: Date, default: null },
     loginActivityDates: { type: [String], default: [] },
     speedChallengeCompleted: { type: Boolean, default: false },
-    accessibilitySettings: {
-      highContrast: { type: Boolean, default: false },
-      reducedMotion: { type: Boolean, default: false },
-      dyslexiaFont: { type: Boolean, default: false },
-      fontScale: { type: String, default: 'medium' },
-      voiceMode: { type: Boolean, default: false },
-      voiceCommandsEnabled: { type: Boolean, default: false },
-    },
     // Generated placement problems (stored at registration)
     placementProblems: { type: Array, default: [] },
     challengeProgress: {

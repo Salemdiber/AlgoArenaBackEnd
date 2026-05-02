@@ -19,6 +19,17 @@ import { DeleteAccountDto } from './dto/delete-account.dto';
 import { UpdatePlacementDto } from './dto/update-placement.dto';
 import { UpdateAccessibilitySettingsDto } from './dto/update-accessibility-settings.dto';
 
+const DEFAULT_ACCESSIBILITY_SETTINGS = {
+  highContrast: false,
+  reducedMotion: false,
+  dyslexiaFont: false,
+  fontScale: 'medium',
+  voiceMode: false,
+  voiceCommandsEnabled: false,
+};
+
+const FONT_SCALES = new Set(['small', 'medium', 'large']);
+
 // â”€â”€ Rank system constants (single source of truth) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 export const RANK_CONFIG = [
   {
@@ -167,15 +178,6 @@ const getRankDefinition = (rankName: string | null | undefined) => {
   );
 };
 
-const DEFAULT_ACCESSIBILITY_SETTINGS = {
-  highContrast: false,
-  reducedMotion: false,
-  dyslexiaFont: false,
-  fontScale: 'medium' as const,
-  voiceMode: false,
-  voiceCommandsEnabled: false,
-};
-
 @Injectable()
 export class UserService {
   constructor(
@@ -186,6 +188,24 @@ export class UserService {
   private tr(key: string, args?: Record<string, unknown>): string {
     const lang = I18nContext.current()?.lang ?? 'en';
     return this.i18n.translate(key, { lang, args });
+  }
+
+  private normalizeAccessibilitySettings(input: any = {}) {
+    const merged = {
+      ...DEFAULT_ACCESSIBILITY_SETTINGS,
+      ...(input && typeof input === 'object' ? input : {}),
+    };
+
+    return {
+      highContrast: Boolean(merged.highContrast),
+      reducedMotion: Boolean(merged.reducedMotion),
+      dyslexiaFont: Boolean(merged.dyslexiaFont),
+      fontScale: FONT_SCALES.has(String(merged.fontScale))
+        ? String(merged.fontScale)
+        : DEFAULT_ACCESSIBILITY_SETTINGS.fontScale,
+      voiceMode: Boolean(merged.voiceMode),
+      voiceCommandsEnabled: Boolean(merged.voiceCommandsEnabled),
+    };
   }
 
   private utcDateOnly(value: Date = new Date()): Date {
@@ -272,6 +292,38 @@ export class UserService {
     return this.userModel.find().lean().exec();
   }
 
+  async findLeaderboard(limit = 20) {
+    const safeLimit = Math.min(100, Math.max(1, Number(limit) || 20));
+    const projection = {
+      username: 1,
+      role: 1,
+      avatar: 1,
+      rank: 1,
+      level: 1,
+      xp: 1,
+      currentStreak: 1,
+      streak: 1,
+      longestStreak: 1,
+      lastLoginDate: 1,
+      streakUpdatedAt: 1,
+      challengeProgress: 1,
+      createdAt: 1,
+      updatedAt: 1,
+    };
+
+    const [items, total] = await Promise.all([
+      this.userModel
+        .find({ role: { $ne: 'Admin' } }, projection)
+        .sort({ xp: -1, currentStreak: -1, streak: -1, username: 1 })
+        .limit(safeLimit)
+        .lean()
+        .exec(),
+      this.userModel.countDocuments({ role: { $ne: 'Admin' } }).exec(),
+    ]);
+
+    return { items, total, limit: safeLimit };
+  }
+
   async findLatestByUsernameOrEmail(identifier: string) {
     return this.userModel
       .findOne({
@@ -309,34 +361,6 @@ export class UserService {
       .exec();
     if (!updated) throw new NotFoundException(this.tr('user.notFound'));
     return updated;
-  }
-
-  private normalizeAccessibilitySettings(settings: any = {}) {
-    return {
-      highContrast:
-        typeof settings?.highContrast === 'boolean'
-          ? settings.highContrast
-          : DEFAULT_ACCESSIBILITY_SETTINGS.highContrast,
-      reducedMotion:
-        typeof settings?.reducedMotion === 'boolean'
-          ? settings.reducedMotion
-          : DEFAULT_ACCESSIBILITY_SETTINGS.reducedMotion,
-      dyslexiaFont:
-        typeof settings?.dyslexiaFont === 'boolean'
-          ? settings.dyslexiaFont
-          : DEFAULT_ACCESSIBILITY_SETTINGS.dyslexiaFont,
-      fontScale: ['small', 'medium', 'large'].includes(settings?.fontScale)
-        ? settings.fontScale
-        : DEFAULT_ACCESSIBILITY_SETTINGS.fontScale,
-      voiceMode:
-        typeof settings?.voiceMode === 'boolean'
-          ? settings.voiceMode
-          : DEFAULT_ACCESSIBILITY_SETTINGS.voiceMode,
-      voiceCommandsEnabled:
-        typeof settings?.voiceCommandsEnabled === 'boolean'
-          ? settings.voiceCommandsEnabled
-          : DEFAULT_ACCESSIBILITY_SETTINGS.voiceCommandsEnabled,
-    };
   }
 
   async getAccessibilitySettings(userId: string) {
@@ -1195,7 +1219,7 @@ export class UserService {
     const user = await this.userModel.findById(userId).lean().exec();
     if (!user) throw new NotFoundException(this.tr('user.notFound'));
 
-    if ((user as any).avatar) {
+    if ((user as any).avatar && String((user as any).avatar).startsWith('/uploads/')) {
       const oldPath = join(process.cwd(), (user as any).avatar);
       try {
         await fs.promises.unlink(oldPath);
@@ -1205,13 +1229,29 @@ export class UserService {
     }
 
     const avatarPath = `/uploads/avatars/${filename}`;
+    const diskPath = join(process.cwd(), avatarPath);
+    const ext = filename.toLowerCase().split('.').pop();
+    const mime =
+      ext === 'png'
+        ? 'image/png'
+        : ext === 'webp'
+          ? 'image/webp'
+          : 'image/jpeg';
+    const fileBuffer = await fs.promises.readFile(diskPath);
+    const avatarDataUrl = `data:${mime};base64,${fileBuffer.toString('base64')}`;
     const updated = await this.userModel
-      .findByIdAndUpdate(userId, { avatar: avatarPath }, { new: true })
+      .findByIdAndUpdate(userId, { avatar: avatarDataUrl }, { new: true })
       .lean()
       .exec();
     if (!updated) throw new NotFoundException(this.tr('user.notFound'));
 
-    return { message: this.tr('user.avatarUpdated'), avatarUrl: avatarPath };
+    try {
+      await fs.promises.unlink(diskPath);
+    } catch {
+      /* temp upload already gone */
+    }
+
+    return { message: this.tr('user.avatarUpdated'), avatarUrl: avatarDataUrl };
   }
 
   async updateProfile(userId: string, dto: UpdateProfileDto): Promise<any> {
