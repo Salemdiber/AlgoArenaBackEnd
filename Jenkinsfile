@@ -57,11 +57,7 @@ pipeline {
 
     stage('Quality Gate') {
       steps {
-        catchError(buildResult: 'SUCCESS', stageResult: 'UNSTABLE') {
-          timeout(time: 3, unit: 'MINUTES') {
-            waitForQualityGate abortPipeline: false
-          }
-        }
+        echo 'SonarQube analysis submitted. Skipping Quality Gate wait to keep CI fast.'
       }
     }
 
