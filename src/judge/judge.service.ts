@@ -34,18 +34,24 @@ export class JudgeService {
     testCases: { input: unknown; expectedOutput: unknown }[],
     context?: { challengeTitle?: string; challengeDescription?: string; challengeId?: string; userId?: string },
   ): Promise<DockerExecutionResponse & { source: 'docker' | 'grok' }> {
-    const dockerResult = await this.dockerService.executeCode(
-      userCode,
-      language as any,
-      testCases,
-      context,
-    );
+    let dockerResult: DockerExecutionResponse;
+    try {
+      dockerResult = await this.dockerService.executeCode(
+        userCode,
+        language as any,
+        testCases,
+        context,
+      );
+    } catch (error: any) {
+      this.logger.warn(
+        `Docker sandbox threw before returning a verdict, falling back to AI execution: ${error?.message || error}`,
+      );
+      const grokResult = await this.grokExecution.executeCode(userCode, language, testCases);
+      return { ...grokResult, source: 'grok' };
+    }
 
     // If Docker succeeded (even with a runtime error from user code), return it
-    if (
-      !dockerResult.error ||
-      dockerResult.error.type !== 'ServiceUnavailable'
-    ) {
+    if (!this.isSandboxInfrastructureError(dockerResult.error)) {
       return { ...dockerResult, source: 'docker' };
     }
 
@@ -55,6 +61,28 @@ export class JudgeService {
     );
     const grokResult = await this.grokExecution.executeCode(userCode, language, testCases);
     return { ...grokResult, source: 'grok' };
+  }
+
+  private isSandboxInfrastructureError(error: DockerExecutionResponse['error']): boolean {
+    if (!error) return false;
+    const type = String(error.type || '').toLowerCase();
+    const message = String(error.message || '').toLowerCase();
+
+    if (type === 'serviceunavailable' || type === 'executionerror' || type === 'systemerror') {
+      return true;
+    }
+
+    return [
+      'docker daemon',
+      'connect enoent',
+      'connect econnrefused',
+      'container',
+      'image',
+      'pull access denied',
+      'no such image',
+      'cannot connect',
+      'sandbox',
+    ].some((fragment) => message.includes(fragment));
   }
 
   private tr(key: string): string {

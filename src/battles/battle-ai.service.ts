@@ -86,22 +86,50 @@ export class BattleAiService {
     testCases: { input: unknown; expectedOutput: unknown }[],
     context?: { challengeTitle?: string; challengeDescription?: string; challengeId?: string; userId?: string },
   ): Promise<DockerExecutionResponse> {
-    const dockerResult = await this.dockerService.executeCode(
-      code,
-      language as any,
-      testCases,
-      context,
-    );
-    if (
-      !dockerResult.error ||
-      dockerResult.error.type !== 'ServiceUnavailable'
-    ) {
+    let dockerResult: DockerExecutionResponse;
+    try {
+      dockerResult = await this.dockerService.executeCode(
+        code,
+        language as any,
+        testCases,
+        context,
+      );
+    } catch (error: any) {
+      this.logger.warn(
+        `Docker sandbox threw during AI battle execution, falling back to Grok execution: ${error?.message || error}`,
+      );
+      return this.grokExecution.executeCode(code, language, testCases);
+    }
+
+    if (!this.isSandboxInfrastructureError(dockerResult.error)) {
       return dockerResult;
     }
     this.logger.warn(
       'Docker sandbox unavailable for AI battle, falling back to Grok execution',
     );
     return this.grokExecution.executeCode(code, language, testCases);
+  }
+
+  private isSandboxInfrastructureError(error: DockerExecutionResponse['error']): boolean {
+    if (!error) return false;
+    const type = String(error.type || '').toLowerCase();
+    const message = String(error.message || '').toLowerCase();
+
+    if (type === 'serviceunavailable' || type === 'executionerror' || type === 'systemerror') {
+      return true;
+    }
+
+    return [
+      'docker daemon',
+      'connect enoent',
+      'connect econnrefused',
+      'container',
+      'image',
+      'pull access denied',
+      'no such image',
+      'cannot connect',
+      'sandbox',
+    ].some((fragment) => message.includes(fragment));
   }
 
   async submitAiSolution(
