@@ -17,6 +17,9 @@ pipeline {
     DOCKER_REGISTRY = 'docker.io'
     DOCKER_CREDENTIALS_ID = 'dockerhub-creds'
     CD_JOB_NAME = 'AlgoArena-Back-CD'
+    PROMETHEUS_PUSHGATEWAY = 'prometheus-pushgateway.monitoring.svc.cluster.local:9091'
+    ALERTMANAGER_URL = 'http://alertmanager.monitoring.svc.cluster.local:9093/api/v1/alerts'
+    CI_JOB_NAME = 'algoarena-backend-ci'
   }
 
   stages {
@@ -90,6 +93,93 @@ pipeline {
   post {
     always {
       archiveArtifacts artifacts: 'coverage/**', allowEmptyArchive: false
+      
+      script {
+        def buildDuration = currentBuild.durationString ?: '0'
+        def buildStatus = currentBuild.result ?: 'SUCCESS'
+        
+        // Export build metrics to Prometheus Pushgateway
+        sh '''
+        # Get test coverage percentage from coverage report
+        COVERAGE=$(grep -oP 'statements":\\s*\\{[^}]*"pct":\\s*\\K[^,]+' coverage/coverage-summary.json || echo "0")
+        
+        cat << EOF | curl -d @- http://$PROMETHEUS_PUSHGATEWAY/metrics/job/$CI_JOB_NAME
+# HELP cicd_build_duration_seconds Build duration in seconds
+# TYPE cicd_build_duration_seconds gauge
+cicd_build_duration_seconds{job="backend"} $BUILD_NUMBER
+# HELP cicd_test_coverage_percent Test coverage percentage
+# TYPE cicd_test_coverage_percent gauge
+cicd_test_coverage_percent{job="backend"} ${COVERAGE}
+# HELP cicd_build_timestamp Build timestamp
+# TYPE cicd_build_timestamp gauge
+cicd_build_timestamp{job="backend"} $(date +%s)
+EOF
+        ''' || true
+      }
+    }
+
+    success {
+      script {
+        sh '''
+        # Send success metric
+        cat << EOF | curl -d @- http://$PROMETHEUS_PUSHGATEWAY/metrics/job/$CI_JOB_NAME
+# HELP cicd_build_success_total Total successful builds
+# TYPE cicd_build_success_total counter
+cicd_build_success_total{job="backend"} 1
+EOF
+
+        # Resolve any existing build failure alerts
+        curl -X POST -H "Content-Type: application/json" \
+          -d '{
+            "alerts": [{
+              "status": "resolved",
+              "labels": {
+                "alertname": "BackendBuildFailed",
+                "severity": "critical",
+                "job": "backend"
+              },
+              "annotations": {
+                "summary": "Backend build succeeded",
+                "description": "Build #'$BUILD_NUMBER' completed successfully"
+              }
+            }]
+          }' \
+          $ALERTMANAGER_URL || true
+        ''' || true
+        echo "✓ Build successful - metrics exported"
+      }
+    }
+
+    failure {
+      script {
+        sh '''
+        # Send failure metric
+        cat << EOF | curl -d @- http://$PROMETHEUS_PUSHGATEWAY/metrics/job/$CI_JOB_NAME
+# HELP cicd_build_failures_total Total failed builds
+# TYPE cicd_build_failures_total counter
+cicd_build_failures_total{job="backend"} 1
+EOF
+
+        # Send alert to Alertmanager
+        curl -X POST -H "Content-Type: application/json" \
+          -d '{
+            "alerts": [{
+              "status": "firing",
+              "labels": {
+                "alertname": "BackendBuildFailed",
+                "severity": "critical",
+                "job": "backend"
+              },
+              "annotations": {
+                "summary": "Backend build failed",
+                "description": "Build #'$BUILD_NUMBER' failed. Check logs: '$BUILD_URL'"
+              }
+            }]
+          }' \
+          $ALERTMANAGER_URL || true
+        ''' || true
+        echo "✗ Build failed - alert sent to monitoring"
+      }
     }
   }
 }
