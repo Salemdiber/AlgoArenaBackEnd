@@ -76,9 +76,11 @@ pipeline {
           kubectl get --raw "/api/v1/namespaces/$NAMESPACE/services/algoarena-backend:3000/proxy/api/system-health"
           kubectl exec -n "$NAMESPACE" deploy/mongo -- \
             mongosh --quiet --eval 'db.adminCommand({ ping: 1 })'
-          
-          # Export deployment metrics to Prometheus Pushgateway
-          cat << 'EOF' | curl -d @- http://$PROMETHEUS_PUSHGATEWAY/metrics/job/$JOB_NAME
+          '''
+
+          // Attempt to export deployment metrics to Pushgateway but don't fail the job if unreachable
+          sh(script: '''
+          cat << 'EOF' | curl -s -o /dev/null -w "%{http_code}" -d @- http://$PROMETHEUS_PUSHGATEWAY/metrics/job/$JOB_NAME || true
 # HELP cicd_deployment_success_total Total successful deployments
 # TYPE cicd_deployment_success_total counter
 cicd_deployment_success_total{job="backend"} 1
@@ -86,7 +88,7 @@ cicd_deployment_success_total{job="backend"} 1
 # TYPE cicd_deployment_duration_seconds gauge
 cicd_deployment_duration_seconds{job="backend"} $(expr $(date +%s) - $BUILD_TIMESTAMP)
 EOF
-          '''
+          ''', returnStatus: true)
         }
       }
     }
@@ -97,24 +99,23 @@ EOF
       script {
         def buildStatus = currentBuild.result ?: 'SUCCESS'
         def buildDuration = currentBuild.durationString.minus(' and counting')
-        
-        // Export build metrics to Prometheus
-        sh '''
-        # Export to Prometheus Pushgateway
-        cat << EOF | curl -d @- http://$PROMETHEUS_PUSHGATEWAY/metrics/job/$JOB_NAME
+
+        // Export build metrics to Prometheus (do not fail job if Pushgateway unreachable)
+        sh(script: '''
+        cat << EOF | curl -s -o /dev/null -w "%{http_code}" -d @- http://$PROMETHEUS_PUSHGATEWAY/metrics/job/$JOB_NAME || true
 # HELP cicd_deployment_duration_seconds Deployment duration in seconds
 # TYPE cicd_deployment_duration_seconds gauge
 cicd_deployment_duration_seconds{job="backend"} $BUILD_NUMBER
 EOF
-        '''
+        ''', returnStatus: true)
       }
     }
 
     success {
       script {
-        // Send success alert to Alertmanager
-        sh '''
-        curl -X POST -H "Content-Type: application/json" \
+        // Send success alert to Alertmanager (best-effort)
+        sh(script: '''
+        curl -s -X POST -H "Content-Type: application/json" \
           -d '{
             "alerts": [{
               "status": "resolved",
@@ -130,7 +131,7 @@ EOF
             }]
           }' \
           $ALERTMANAGER_URL || true
-        '''
+        ''', returnStatus: true)
         echo "✓ Backend deployed successfully - metrics exported"
       }
     }
@@ -169,5 +170,6 @@ EOF
     }
   }
 }
+
 
 
