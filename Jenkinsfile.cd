@@ -13,6 +13,9 @@ pipeline {
   environment {
     NAMESPACE = 'algoarena'
     KUBECONFIG_CREDENTIALS_ID = 'kubeconfig-algoarena'
+    PROMETHEUS_PUSHGATEWAY = 'prometheus-pushgateway.monitoring.svc.cluster.local:9091'
+    ALERTMANAGER_URL = 'http://alertmanager.monitoring.svc.cluster.local:9093/api/v1/alerts'
+    JOB_NAME = 'algoarena-backend-cd'
   }
 
   stages {
@@ -73,12 +76,98 @@ pipeline {
           kubectl get --raw "/api/v1/namespaces/$NAMESPACE/services/algoarena-backend:3000/proxy/api/system-health"
           kubectl exec -n "$NAMESPACE" deploy/mongo -- \
             mongosh --quiet --eval 'db.adminCommand({ ping: 1 })'
+          
+          # Export deployment metrics to Prometheus Pushgateway
+          cat << 'EOF' | curl -d @- http://$PROMETHEUS_PUSHGATEWAY/metrics/job/$JOB_NAME
+# HELP cicd_deployment_success_total Total successful deployments
+# TYPE cicd_deployment_success_total counter
+cicd_deployment_success_total{job="backend"} 1
+# HELP cicd_deployment_duration_seconds Deployment duration in seconds
+# TYPE cicd_deployment_duration_seconds gauge
+cicd_deployment_duration_seconds{job="backend"} $(expr $(date +%s) - $BUILD_TIMESTAMP)
+EOF
           '''
         }
       }
     }
   }
-}
 
+  post {
+    always {
+      script {
+        def buildStatus = currentBuild.result ?: 'SUCCESS'
+        def buildDuration = currentBuild.durationString.minus(' and counting')
+        
+        // Export build metrics to Prometheus
+        sh '''
+        # Export to Prometheus Pushgateway
+        cat << EOF | curl -d @- http://$PROMETHEUS_PUSHGATEWAY/metrics/job/$JOB_NAME
+# HELP cicd_deployment_duration_seconds Deployment duration in seconds
+# TYPE cicd_deployment_duration_seconds gauge
+cicd_deployment_duration_seconds{job="backend"} $BUILD_NUMBER
+EOF
+        '''
+      }
+    }
+
+    success {
+      script {
+        // Send success alert to Alertmanager
+        sh '''
+        curl -X POST -H "Content-Type: application/json" \
+          -d '{
+            "alerts": [{
+              "status": "resolved",
+              "labels": {
+                "alertname": "BackendDeploymentFailed",
+                "severity": "critical",
+                "job": "backend"
+              },
+              "annotations": {
+                "summary": "Backend deployment succeeded",
+                "description": "Build #'$BUILD_NUMBER' deployed successfully to '$NAMESPACE' namespace"
+              }
+            }]
+          }' \
+          $ALERTMANAGER_URL || true
+        '''
+        echo "✓ Backend deployed successfully - metrics exported"
+      }
+    }
+
+    failure {
+      script {
+        // Send failure alert to Alertmanager
+        sh '''
+        # Export failure metric
+        cat << EOF | curl -d @- http://$PROMETHEUS_PUSHGATEWAY/metrics/job/$JOB_NAME
+# HELP cicd_deployment_failures_total Total deployment failures
+# TYPE cicd_deployment_failures_total counter
+cicd_deployment_failures_total{job="backend"} 1
+EOF
+
+        # Send alert to Alertmanager
+        curl -X POST -H "Content-Type: application/json" \
+          -d '{
+            "alerts": [{
+              "status": "firing",
+              "labels": {
+                "alertname": "BackendDeploymentFailed",
+                "severity": "critical",
+                "job": "backend"
+              },
+              "annotations": {
+                "summary": "Backend deployment failed",
+                "description": "Build #'$BUILD_NUMBER' deployment failed in '$NAMESPACE' namespace. Check logs: '$BUILD_URL'"
+              }
+            }]
+          }' \
+          $ALERTMANAGER_URL || true
+        '''
+        echo "✗ Backend deployment failed - alert sent"
+      }
+    }
+  }
+}
 
 
