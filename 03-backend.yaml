@@ -9,6 +9,10 @@ data:
   CORS_ORIGIN: "http://algoarena.local,https://algoarenatn.vercel.app,https://esprit-pi-4twin4-2026-algoarena-backend.onrender.com"
   FRONTEND_URL: https://algoarenatn.vercel.app
   COMPLEXITY_MODEL_URL: https://codecomplexity-model.onrender.com
+  SMTP_HOST: smtp-relay.brevo.com
+  SMTP_PORT: "587"
+  EMAIL_FROM_NAME: AlgoArena
+  EMAIL_SMTP_EXISTENCE_CHECK: "false"
 ---
 apiVersion: v1
 kind: Secret
@@ -23,6 +27,11 @@ stringData:
   GOOGLE_CLIENT_SECRET: disabled
   GITHUB_CLIENT_ID: disabled
   GITHUB_CLIENT_SECRET: disabled
+  SMTP_USER: replace-with-smtp-user
+  SMTP_PASS: replace-with-smtp-password
+  EMAIL_FROM: replace-with-verified-sender-email
+  GROQ_API_KEY: replace-with-groq-api-key
+  XAI_API_KEY: replace-with-xai-api-key
 ---
 apiVersion: apps/v1
 kind: Deployment

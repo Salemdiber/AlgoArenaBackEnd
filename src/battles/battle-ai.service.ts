@@ -38,7 +38,7 @@ export class BattleAiService {
   private readonly model: string;
   private readonly baseUrl: string;
   private readonly apiKey: string | undefined;
-  private readonly provider: 'grok' | 'groq' | 'unknown';
+  private readonly provider: 'grok' | 'xai' | 'groq' | 'unknown';
 
   constructor(
     private readonly config: ConfigService,
@@ -50,6 +50,7 @@ export class BattleAiService {
     private readonly i18n: I18nService,
   ) {
     const grokKey = this.config.get<string>('GROK_API_KEY');
+    const xaiKey = this.config.get<string>('XAI_API_KEY');
     const groqKey = this.config.get<string>('GROQ_API_KEY');
 
     if (grokKey) {
@@ -58,6 +59,17 @@ export class BattleAiService {
       this.baseUrl =
         this.config.get<string>('GROK_API_BASE_URL') || 'https://api.x.ai/v1';
       this.model = this.config.get<string>('GROK_MODEL') || 'grok-2-latest';
+    } else if (xaiKey) {
+      this.provider = 'xai';
+      this.apiKey = xaiKey;
+      this.baseUrl =
+        this.config.get<string>('XAI_API_BASE_URL') ||
+        this.config.get<string>('GROK_API_BASE_URL') ||
+        'https://api.x.ai/v1';
+      this.model =
+        this.config.get<string>('XAI_MODEL') ||
+        this.config.get<string>('GROK_MODEL') ||
+        'grok-2-latest';
     } else if (groqKey) {
       this.provider = 'groq';
       this.apiKey = groqKey;
@@ -321,7 +333,7 @@ export class BattleAiService {
   ): Promise<string> {
     if (!this.apiKey) {
       this.logger.warn(
-        'GROK_API_KEY or GROQ_API_KEY is not configured, using fallback solution',
+        'GROK_API_KEY, XAI_API_KEY, or GROQ_API_KEY is not configured, using fallback solution',
       );
       return this.fallbackSolution(challenge, language);
     }

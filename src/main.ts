@@ -13,6 +13,21 @@ import { resolveAllowedOrigins } from './common/server-config';
 
 const SWAGGER_DOCS_PATHS = ['/api/docs', '/api/docs-json', '/api/docs-yaml'];
 const SWAGGER_ALLOWED_ROLES = new Set(['ADMIN', 'SUPER_ADMIN', 'DEV']);
+const CORS_METHODS = 'GET,HEAD,PUT,PATCH,POST,DELETE,OPTIONS';
+const CORS_HEADERS = 'Content-Type,Authorization,Accept-Language';
+
+function normalizeOrigin(value?: string | null): string {
+  return String(value || '').trim().replace(/\/+$/, '');
+}
+
+function resolveCorsOrigin(origin: string | undefined, allowAll: boolean, allowedOrigins: string[]): string | null {
+  if (!origin) return '*';
+  const normalized = normalizeOrigin(origin);
+  if (allowAll || allowedOrigins.map(normalizeOrigin).includes(normalized)) {
+    return origin;
+  }
+  return null;
+}
 
 function decodeJwtPayload(token: string): Record<string, unknown> | null {
   const segments = token.split('.');
@@ -69,17 +84,37 @@ async function bootstrap() {
   const allowAll = (process.env.CORS_ORIGIN || '').trim() === '*';
   const allowedOrigins = resolveAllowedOrigins(process.env.CORS_ORIGIN);
 
+  app.use((req: any, res: any, next: any) => {
+    const origin = req.headers?.origin as string | undefined;
+    const corsOrigin = resolveCorsOrigin(origin, allowAll, allowedOrigins);
+    if (corsOrigin) {
+      res.setHeader('Access-Control-Allow-Origin', corsOrigin === '*' && origin ? origin : corsOrigin);
+      res.setHeader('Vary', 'Origin');
+      res.setHeader('Access-Control-Allow-Credentials', 'true');
+      res.setHeader('Access-Control-Allow-Methods', CORS_METHODS);
+      res.setHeader('Access-Control-Allow-Headers', CORS_HEADERS);
+      res.setHeader('Access-Control-Expose-Headers', 'Set-Cookie');
+      res.setHeader('Access-Control-Max-Age', '86400');
+    }
+
+    if (req.method === 'OPTIONS') {
+      return res.status(204).send();
+    }
+
+    next();
+  });
+
   app.enableCors({
     origin: (origin: string | undefined, callback: (err: Error | null, allow?: boolean | string) => void) => {
       // Allow requests with no origin (server-to-server, curl, mobile apps)
       if (!origin) return callback(null, true);
-      if (allowAll || allowedOrigins.includes(origin)) {
+      if (resolveCorsOrigin(origin, allowAll, allowedOrigins)) {
         return callback(null, origin);
       }
       callback(null, false);
     },
-    methods: ['GET', 'HEAD', 'PUT', 'PATCH', 'POST', 'DELETE', 'OPTIONS'],
-    allowedHeaders: ['Content-Type', 'Authorization', 'Accept-Language'],
+    methods: CORS_METHODS,
+    allowedHeaders: CORS_HEADERS,
     exposedHeaders: ['Set-Cookie'],
     credentials: true,
     maxAge: 86400,

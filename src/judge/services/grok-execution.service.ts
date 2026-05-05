@@ -18,10 +18,11 @@ export class GrokExecutionService {
   private readonly baseUrl: string;
   private readonly apiKey: string | undefined;
   private readonly model: string;
-  private readonly provider: 'grok' | 'groq' | 'none';
+  private readonly provider: 'grok' | 'xai' | 'groq' | 'none';
 
   constructor(private readonly config: ConfigService) {
     const grokKey = this.config.get<string>('GROK_API_KEY');
+    const xaiKey = this.config.get<string>('XAI_API_KEY');
     const groqKey = this.config.get<string>('GROQ_API_KEY');
 
     if (grokKey) {
@@ -30,6 +31,17 @@ export class GrokExecutionService {
       this.baseUrl =
         this.config.get<string>('GROK_API_BASE_URL') || 'https://api.x.ai/v1';
       this.model = this.config.get<string>('GROK_MODEL') || 'grok-2-latest';
+    } else if (xaiKey) {
+      this.provider = 'xai';
+      this.apiKey = xaiKey;
+      this.baseUrl =
+        this.config.get<string>('XAI_API_BASE_URL') ||
+        this.config.get<string>('GROK_API_BASE_URL') ||
+        'https://api.x.ai/v1';
+      this.model =
+        this.config.get<string>('XAI_MODEL') ||
+        this.config.get<string>('GROK_MODEL') ||
+        'grok-2-latest';
     } else if (groqKey) {
       this.provider = 'groq';
       this.apiKey = groqKey;
@@ -64,7 +76,7 @@ export class GrokExecutionService {
         error: {
           type: 'ServiceUnavailable',
           message:
-            'Neither Docker nor AI execution is available. Please configure GROK_API_KEY or GROQ_API_KEY.',
+            'Neither Docker nor AI execution is available. Please configure GROK_API_KEY, XAI_API_KEY, or GROQ_API_KEY.',
           line: null,
         },
       };

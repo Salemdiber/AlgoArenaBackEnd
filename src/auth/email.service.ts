@@ -14,8 +14,17 @@ export class EmailService {
   private transporter: nodemailer.Transporter | null = null;
 
   constructor() {
-    const requiredVars = ['SMTP_HOST', 'SMTP_PORT', 'SMTP_USER', 'SMTP_PASS', 'EMAIL_FROM', 'EMAIL_FROM_NAME'];
-    const missing = requiredVars.filter((v) => !process.env[v]);
+    const requiredVars = [
+      ['SMTP_HOST', 'BREVO_SMTP_HOST'],
+      ['SMTP_PORT', 'BREVO_SMTP_PORT'],
+      ['SMTP_USER', 'BREVO_SMTP_USER'],
+      ['SMTP_PASS', 'BREVO_SMTP_PASS'],
+      ['EMAIL_FROM'],
+      ['EMAIL_FROM_NAME'],
+    ];
+    const missing = requiredVars
+      .filter((vars) => !vars.some((v) => process.env[v]))
+      .map((vars) => vars.join(' or '));
     if (missing.length > 0) {
       this.logger.warn(
         `⚠️  SMTP env vars missing: ${missing.join(', ')} — emails will NOT be sent until these are configured on the deployment platform.`,
@@ -29,10 +38,10 @@ export class EmailService {
 
   private getRequiredConfig() {
     const config = {
-      SMTP_HOST: process.env.SMTP_HOST || '',
-      SMTP_PORT: process.env.SMTP_PORT || '',
-      SMTP_USER: process.env.SMTP_USER || '',
-      SMTP_PASS: process.env.SMTP_PASS || '',
+      SMTP_HOST: process.env.SMTP_HOST || process.env.BREVO_SMTP_HOST || '',
+      SMTP_PORT: process.env.SMTP_PORT || process.env.BREVO_SMTP_PORT || '',
+      SMTP_USER: process.env.SMTP_USER || process.env.BREVO_SMTP_USER || '',
+      SMTP_PASS: process.env.SMTP_PASS || process.env.BREVO_SMTP_PASS || '',
       EMAIL_FROM: process.env.EMAIL_FROM || '',
       EMAIL_FROM_NAME: process.env.EMAIL_FROM_NAME || '',
     };
@@ -42,7 +51,9 @@ export class EmailService {
       .map(([key]) => key);
 
     if (missing.length > 0) {
-      this.logger.error(`Email configuration missing: ${missing.join(', ')}`);
+      this.logger.error(
+        `Email configuration missing: ${missing.join(', ')}. Configure SMTP_* or BREVO_SMTP_* variables in production.`,
+      );
       throw new InternalServerErrorException('Email service is not configured');
     }
 
@@ -68,6 +79,14 @@ export class EmailService {
       port: smtpPort,
       secure: smtpPort === 465,
       auth: { user: config.SMTP_USER, pass: config.SMTP_PASS },
+      connectionTimeout: 15000,
+      greetingTimeout: 15000,
+      socketTimeout: 20000,
+      tls: {
+        servername: config.SMTP_HOST,
+        rejectUnauthorized:
+          process.env.SMTP_TLS_REJECT_UNAUTHORIZED === 'false' ? false : true,
+      },
     });
 
     return this.transporter;
@@ -80,7 +99,11 @@ export class EmailService {
     try {
       this.logger.log(`Email send started | to=${to} | subject="${subject}"`);
       const info = await transporter.sendMail({
-        from: `${config.EMAIL_FROM_NAME} <${config.EMAIL_FROM}>`,
+        from: {
+          name: config.EMAIL_FROM_NAME,
+          address: config.EMAIL_FROM,
+        },
+        sender: config.EMAIL_FROM,
         to,
         subject,
         html,
