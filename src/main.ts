@@ -186,7 +186,6 @@ async function bootstrap() {
   await app.listen(port);
 
   // ── Startup diagnostics ────────────────────────────────────────────────────
-  const logger = app.get<any>('Logger') ?? console;
   const check = (key: string) => (process.env[key] ? '✅' : '❌ MISSING');
   const diag = [
     `AlgoArena backend listening on port ${port}`,
