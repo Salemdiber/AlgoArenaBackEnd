@@ -194,6 +194,7 @@ async function bootstrap() {
     `  GROQ_API_KEY:        ${check('GROQ_API_KEY')}   (AI analysis, hints, challenge gen, onboarding, community)`,
     `  GROK_API_KEY:        ${check('GROK_API_KEY')}   (battle AI, fallback code execution)`,
     `  XAI_API_KEY:         ${check('XAI_API_KEY')}   (executive brief / AI agents)`,
+    `  FORCE_AI_EXECUTION:  ${process.env.FORCE_AI_EXECUTION ?? (process.env.NODE_ENV === 'production' ? 'production-default' : 'false')}`,
     `  SMTP_HOST:           ${check('SMTP_HOST')}   (email: reset password, welcome)`,
     `  COMPLEXITY_MODEL_URL:${process.env.COMPLEXITY_MODEL_URL ?? ' https://codecomplexity-model.onrender.com (default)'}`,
     `  RECAPTCHA_SECRET:    ${check('RECAPTCHA_SECRET')}`,

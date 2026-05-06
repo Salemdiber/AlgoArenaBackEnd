@@ -9,6 +9,7 @@ data:
   CORS_ORIGIN: "http://algoarena.local,https://algoarenatn.vercel.app,https://esprit-pi-4twin4-2026-algoarena-backend.onrender.com"
   FRONTEND_URL: https://algoarenatn.vercel.app
   COMPLEXITY_MODEL_URL: https://codecomplexity-model.onrender.com
+  FORCE_AI_EXECUTION: "true"
   SMTP_HOST: smtp-relay.brevo.com
   SMTP_PORT: "587"
   EMAIL_FROM_NAME: AlgoArena

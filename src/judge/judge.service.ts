@@ -25,8 +25,8 @@ export class JudgeService {
   ) {}
 
   /**
-   * Try Docker sandbox first; if it returns a ServiceUnavailable error
-   * (Docker daemon not running), fall back to Grok/Groq AI execution.
+   * Production hosts do not expose Docker, so judge submissions execute
+   * directly through Grok/Groq there. Local/dev can still use Docker first.
    */
   private async executeWithFallback(
     userCode: string,
@@ -34,6 +34,14 @@ export class JudgeService {
     testCases: { input: unknown; expectedOutput: unknown }[],
     context?: { challengeTitle?: string; challengeDescription?: string; challengeId?: string; userId?: string },
   ): Promise<DockerExecutionResponse & { source: 'docker' | 'grok' }> {
+    if (this.shouldUseAiExecutionFirst()) {
+      this.logger.warn(
+        'AI execution mode enabled for judge submission; skipping Docker sandbox',
+      );
+      const grokResult = await this.grokExecution.executeCode(userCode, language, testCases);
+      return { ...grokResult, source: 'grok' };
+    }
+
     let dockerResult: DockerExecutionResponse;
     try {
       dockerResult = await this.dockerService.executeCode(
@@ -61,6 +69,12 @@ export class JudgeService {
     );
     const grokResult = await this.grokExecution.executeCode(userCode, language, testCases);
     return { ...grokResult, source: 'grok' };
+  }
+
+  private shouldUseAiExecutionFirst(): boolean {
+    if (process.env.FORCE_DOCKER_EXECUTION === 'true') return false;
+    if (process.env.FORCE_AI_EXECUTION === 'true') return true;
+    return process.env.NODE_ENV === 'production';
   }
 
   private isSandboxInfrastructureError(error: DockerExecutionResponse['error']): boolean {

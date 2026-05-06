@@ -98,6 +98,13 @@ export class BattleAiService {
     testCases: { input: unknown; expectedOutput: unknown }[],
     context?: { challengeTitle?: string; challengeDescription?: string; challengeId?: string; userId?: string },
   ): Promise<DockerExecutionResponse> {
+    if (this.shouldUseAiExecutionFirst()) {
+      this.logger.warn(
+        'AI execution mode enabled for AI battle submission; skipping Docker sandbox',
+      );
+      return this.grokExecution.executeCode(code, language, testCases);
+    }
+
     let dockerResult: DockerExecutionResponse;
     try {
       dockerResult = await this.dockerService.executeCode(
@@ -120,6 +127,12 @@ export class BattleAiService {
       'Docker sandbox unavailable for AI battle, falling back to Grok execution',
     );
     return this.grokExecution.executeCode(code, language, testCases);
+  }
+
+  private shouldUseAiExecutionFirst(): boolean {
+    if (process.env.FORCE_DOCKER_EXECUTION === 'true') return false;
+    if (process.env.FORCE_AI_EXECUTION === 'true') return true;
+    return process.env.NODE_ENV === 'production';
   }
 
   private isSandboxInfrastructureError(error: DockerExecutionResponse['error']): boolean {
