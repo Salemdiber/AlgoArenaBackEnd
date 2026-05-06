@@ -13,8 +13,8 @@ pipeline {
   environment {
     NAMESPACE = 'algoarena'
     KUBECONFIG_CREDENTIALS_ID = 'kubeconfig-algoarena'
-    PROMETHEUS_PUSHGATEWAY = 'prometheus-pushgateway.monitoring.svc.cluster.local:9091'
-    ALERTMANAGER_URL = 'http://alertmanager.monitoring.svc.cluster.local:9093/api/v1/alerts'
+    PROMETHEUS_PUSHGATEWAY = 'http://127.0.0.1:9091'
+    ALERTMANAGER_URL = 'http://127.0.0.1:9093/api/v1/alerts'
     JOB_NAME = 'algoarena-backend-cd'
   }
 
@@ -80,13 +80,16 @@ pipeline {
 
           // Attempt to export deployment metrics to Pushgateway but don't fail the job if unreachable
           sh(script: '''
-          cat << 'EOF' | curl -s -o /dev/null -w "%{http_code}" -d @- http://$PROMETHEUS_PUSHGATEWAY/metrics/job/$JOB_NAME || true
+          set +e
+
+          cat << EOF | curl -fsS --connect-timeout 5 --max-time 10 --data-binary @- "$PROMETHEUS_PUSHGATEWAY/metrics/job/$JOB_NAME" >/dev/null || \
+            echo "Pushgateway unreachable at $PROMETHEUS_PUSHGATEWAY, skipping deployment metric export"
 # HELP cicd_deployment_success_total Total successful deployments
 # TYPE cicd_deployment_success_total counter
 cicd_deployment_success_total{job="backend"} 1
-# HELP cicd_deployment_duration_seconds Deployment duration in seconds
-# TYPE cicd_deployment_duration_seconds gauge
-cicd_deployment_duration_seconds{job="backend"} $(expr $(date +%s) - $BUILD_TIMESTAMP)
+# HELP cicd_deployment_timestamp Deployment timestamp
+# TYPE cicd_deployment_timestamp gauge
+cicd_deployment_timestamp{job="backend"} $(date +%s)
 EOF
           ''', returnStatus: true)
         }
@@ -97,17 +100,21 @@ EOF
   post {
     always {
       script {
-        def buildStatus = currentBuild.result ?: 'SUCCESS'
-        def buildDuration = currentBuild.durationString.minus(' and counting')
+        def deploymentDurationSeconds = (currentBuild.duration ?: 0L) / 1000.0
 
         // Export build metrics to Prometheus (do not fail job if Pushgateway unreachable)
-        sh(script: '''
-        cat << EOF | curl -s -o /dev/null -w "%{http_code}" -d @- http://$PROMETHEUS_PUSHGATEWAY/metrics/job/$JOB_NAME || true
+        withEnv(["DEPLOYMENT_DURATION_SECONDS=${deploymentDurationSeconds}"]) {
+          sh(script: '''
+        set +e
+
+        cat << EOF | curl -fsS --connect-timeout 5 --max-time 10 --data-binary @- "$PROMETHEUS_PUSHGATEWAY/metrics/job/$JOB_NAME" >/dev/null || \
+          echo "Pushgateway unreachable at $PROMETHEUS_PUSHGATEWAY, skipping deployment duration export"
 # HELP cicd_deployment_duration_seconds Deployment duration in seconds
 # TYPE cicd_deployment_duration_seconds gauge
-cicd_deployment_duration_seconds{job="backend"} $BUILD_NUMBER
+cicd_deployment_duration_seconds{job="backend"} $DEPLOYMENT_DURATION_SECONDS
 EOF
-        ''', returnStatus: true)
+          ''', returnStatus: true)
+        }
       }
     }
 
@@ -115,7 +122,9 @@ EOF
       script {
         // Send success alert to Alertmanager (best-effort)
         sh(script: '''
-        curl -s -X POST -H "Content-Type: application/json" \
+        set +e
+
+        curl -fsS --connect-timeout 5 --max-time 10 -X POST -H "Content-Type: application/json" \
           -d '{
             "alerts": [{
               "status": "resolved",
@@ -130,7 +139,7 @@ EOF
               }
             }]
           }' \
-          $ALERTMANAGER_URL || true
+          "$ALERTMANAGER_URL" >/dev/null || echo "Alertmanager unreachable at $ALERTMANAGER_URL, skipping resolved deployment alert"
         ''', returnStatus: true)
         echo "✓ Backend deployed successfully - metrics exported"
       }
@@ -140,15 +149,18 @@ EOF
       script {
         // Send failure alert to Alertmanager
         sh '''
+        set +e
+
         # Export failure metric
-        cat << EOF | curl -d @- http://$PROMETHEUS_PUSHGATEWAY/metrics/job/$JOB_NAME
+        cat << EOF | curl -fsS --connect-timeout 5 --max-time 10 --data-binary @- "$PROMETHEUS_PUSHGATEWAY/metrics/job/$JOB_NAME" >/dev/null || \
+          echo "Pushgateway unreachable at $PROMETHEUS_PUSHGATEWAY, skipping failure deployment metric export"
 # HELP cicd_deployment_failures_total Total deployment failures
 # TYPE cicd_deployment_failures_total counter
 cicd_deployment_failures_total{job="backend"} 1
 EOF
 
         # Send alert to Alertmanager
-        curl -X POST -H "Content-Type: application/json" \
+        curl -fsS --connect-timeout 5 --max-time 10 -X POST -H "Content-Type: application/json" \
           -d '{
             "alerts": [{
               "status": "firing",
@@ -163,13 +175,12 @@ EOF
               }
             }]
           }' \
-          $ALERTMANAGER_URL || true
+          "$ALERTMANAGER_URL" >/dev/null || echo "Alertmanager unreachable at $ALERTMANAGER_URL, skipping failure deployment alert"
         '''
         echo "✗ Backend deployment failed - alert sent"
       }
     }
   }
 }
-
 
 
